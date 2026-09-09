@@ -13,6 +13,7 @@ import { Logo } from './components/Logo.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { GamesPage } from './pages/GamesPage.tsx';
 import { WalletPage } from './pages/WalletPage.tsx';
+import { DepositPage } from './pages/DepositPage.tsx';
 import { ProfilePage } from './pages/ProfilePage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
@@ -169,6 +170,13 @@ export default function App() {
     }
   };
 
+  const handleBalanceUpdate = (newBalance: number) => {
+    setUser((prev) => {
+      if (!prev || prev.walletBalance === newBalance) return prev;
+      return { ...prev, walletBalance: newBalance };
+    });
+  };
+
   const handleLoginSuccess = (displayName: string, phoneNumber: string = '+91 98765 43210') => {
     if (!user) {
       setUser({
@@ -245,7 +253,7 @@ export default function App() {
         currentPage={currentPage}
         onNavigate={handleNavigate}
         user={user}
-        onOpenDeposit={() => handleNavigate('wallet')}
+        onOpenDeposit={() => handleNavigate('deposit')}
       />
 
       {/* Floating Toast Feedback */}
@@ -286,6 +294,23 @@ export default function App() {
               />
             )}
 
+            {currentPage === 'deposit' && (
+              user ? (
+                <DepositPage
+                  user={user}
+                  transactions={ledger}
+                  onNavigate={handleNavigate}
+                  onBalanceUpdate={handleBalanceUpdate}
+                />
+              ) : (
+                <LoginPage
+                  onLoginSuccess={handleLoginSuccess}
+                  onNavigate={handleNavigate}
+                  redirectNotice="Sign in with your mobile number to access deposit and wallet services."
+                />
+              )
+            )}
+
             {currentPage === 'wallet' && (
               user ? (
                 <WalletPage
@@ -295,6 +320,7 @@ export default function App() {
                   onDepositInitiated={handleDepositInitiated}
                   onWithdrawalRequested={handleWithdrawalRequested}
                   onCurrencyChange={handleCurrencyChange}
+                  onBalanceUpdate={handleBalanceUpdate}
                   onNavigate={handleNavigate}
                 />
               ) : (

@@ -102,5 +102,59 @@ service cloud.firestore {
       // Rule 4: User deletion is forbidden from the client.
       allow delete: if false;
     }
+
+    // ============================================================================
+    // WALLET COLLECTION: wallets/{userId}
+    // Master Security Mandates (Step 7):
+    // 1. Client can ONLY read its own wallet.
+    // 2. Client is strictly FORBIDDEN from creating, updating, or deleting wallets.
+    // 3. Balance changes must ONLY be executed by trusted server-side logic.
+    // ============================================================================
+    match /wallets/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    // ============================================================================
+    // TRANSACTIONS COLLECTION: transactions/{transactionId}
+    // Master Security Mandates (Step 7):
+    // 1. Client can read its own transactions.
+    // 2. Client CANNOT create, update, or delete transaction records.
+    // 3. Client cannot mark deposits/withdrawals completed or modify provider refs.
+    // ============================================================================
+    match /transactions/{transactionId} {
+      allow get: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow list: if isAuthenticated();
+      allow create, update, delete: if false;
+    }
+
+    // ============================================================================
+    // AUDIT TRAIL COLLECTION: wallet_audits/{auditId}
+    // Master Security Mandates (Step 7):
+    // 1. Immutable audit records written solely by server backend.
+    // 2. Client can only read its own audit trail.
+    // 3. Client writes are completely rejected.
+    // ============================================================================
+    match /wallet_audits/{auditId} {
+      allow get: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow list: if isAuthenticated();
+      allow create, update, delete: if false;
+    }
+
+    // ============================================================================
+    // SYSTEM & PAYMENT CONFIGURATION: system/paymentConfig
+    // Master Security Mandates (Step 10 - Admin Deposit Configuration):
+    // 1. Normal players must NOT be able to change deposit URL, enable/disable deposit,
+    //    change currency, change limits, or modify payment configuration.
+    // 2. Client-side direct writes to system/paymentConfig are strictly FORBIDDEN.
+    // 3. Do not use client-editable role fields as the only admin security mechanism.
+    // 4. All configuration writes must go through trusted server-side authorization.
+    // ============================================================================
+    match /system/paymentConfig {
+      allow get: if true;
+      allow list: if false;
+      allow create, update, delete: if false; // All direct client writes are rejected by security rules.
+    }
   }
 }

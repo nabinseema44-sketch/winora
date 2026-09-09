@@ -15,12 +15,78 @@
         "updatedAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of last profile update" }
       },
       "required": ["uid", "phoneNumber", "displayName", "role", "status", "createdAt", "updatedAt"]
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "User account money wallet document in wallets/{uid}. Balance is strictly server-authoritative and non-writable by clients.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "User unique ID matching document ID" },
+        "currency": { "type": "string", "description": "Currency code (e.g. INR, USD)" },
+        "balance": { "type": "number", "minimum": 0, "description": "Available money balance. Updated solely by server." },
+        "heldBalance": { "type": "number", "minimum": 0, "description": "Funds temporarily held for pending withdrawals." },
+        "kycStatus": { "type": "string", "enum": ["not_submitted", "pending", "verified", "rejected"], "description": "KYC compliance state." },
+        "withdrawalEligibility": { "type": "boolean", "description": "Whether user is legally eligible to withdraw." },
+        "accountVerificationStatus": { "type": "string", "enum": ["unverified", "verified", "restricted"], "description": "Financial verification status." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of wallet creation" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of last update" }
+      },
+      "required": ["uid", "currency", "balance", "createdAt", "updatedAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial transaction record in transactions/{transactionId}. Non-writable by client.",
+      "type": "object",
+      "properties": {
+        "transactionId": { "type": "string", "description": "Unique transaction identifier" },
+        "uid": { "type": "string", "description": "User UID who owns the transaction" },
+        "type": { "type": "string", "enum": ["deposit", "withdrawal"], "description": "Transaction direction" },
+        "amount": { "type": "number", "minimum": 0.01, "description": "Transaction amount" },
+        "currency": { "type": "string", "description": "Currency code (e.g. INR)" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed", "cancelled"], "description": "Lifecycle status" },
+        "paymentMethod": { "type": "string", "description": "Payment channel (UPI, Card, NetBanking, IMPS)" },
+        "providerReference": { "type": "string", "description": "External payment gateway order/UTR reference" },
+        "idempotencyKey": { "type": "string", "description": "Unique key preventing duplicate processing" },
+        "destinationAccount": { "type": "string", "description": "Masked destination bank account or VPA" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of creation" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of last status update" }
+      },
+      "required": ["transactionId", "uid", "type", "amount", "currency", "status", "paymentMethod", "providerReference", "createdAt", "updatedAt"]
+    },
+    "WalletAudit": {
+      "title": "WalletAudit",
+      "description": "Immutable balance audit log in wallet_audits/{auditId}. Strictly server-generated.",
+      "type": "object",
+      "properties": {
+        "auditId": { "type": "string", "description": "Unique audit record ID" },
+        "uid": { "type": "string", "description": "User identifier" },
+        "transactionId": { "type": "string", "description": "Associated transaction ID" },
+        "operation": { "type": "string", "enum": ["deposit_credit", "withdrawal_hold", "withdrawal_debit", "withdrawal_release_failed"], "description": "Mutation type" },
+        "amount": { "type": "number", "description": "Amount mutated" },
+        "previousBalance": { "type": "number", "description": "Balance prior to mutation" },
+        "newBalance": { "type": "number", "description": "Balance following mutation" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "Timestamp of mutation" },
+        "sourceReference": { "type": "string", "description": "Server-side webhook/settlement reference" }
+      },
+      "required": ["auditId", "uid", "transactionId", "operation", "amount", "previousBalance", "newBalance", "timestamp", "sourceReference"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "Player profile document. Readable and writable only by the authenticated owner user. Role, status, and UID are immutable."
+    },
+    "/wallets/{userId}": {
+      "schema": "Wallet",
+      "description": "Money wallet document. Read-only by owner user. Balance and transactions are strictly non-writable by client."
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Audit-logged financial transactions. Read-only by owner user. Non-writable by client."
+    },
+    "/wallet_audits/{auditId}": {
+      "schema": "WalletAudit",
+      "description": "Immutable financial audit records. Read-only by owner user. Non-writable by client."
     }
   }
 }
