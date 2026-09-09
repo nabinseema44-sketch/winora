@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================================
+    // WINORA FIRESTORE SECURITY RULES (STEP 4 - SECURE USER DATABASE)
+    // Master Security Directives:
+    // 1. Unauthenticated users are denied all access.
+    // 2. Strict single-tenant isolation: Players can ONLY access their own user doc.
+    // 3. No player can read or list another player's private profile.
+    // 4. Role, status, UID, and createdAt are strictly immutable after creation.
+    // 5. Only safe profile fields (displayName, avatar, updatedAt) can be updated.
+    // 6. No admin functionality is created at this step.
+    // 7. All other collections remain blocked.
+    // ============================================================================
+
+    // Core security primitives
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation helper for safe profile display names
+    function isValidDisplayName(name) {
+      return name is string && name.size() >= 2 && name.size() <= 50;
+    }
+
+    // Validation helper for user document creation
+    function isValidNewUser(userId, data) {
+      return data.uid == userId
+        && data.role == 'player'
+        && data.status == 'active'
+        && isValidDisplayName(data.displayName)
+        && data.phoneNumber is string
+        && data.phoneNumber.size() >= 8
+        && data.phoneNumber.size() <= 20
+        && (data.createdAt is string || data.createdAt is timestamp)
+        && (data.updatedAt is string || data.updatedAt is timestamp)
+        && data.keys().hasAll(['uid', 'phoneNumber', 'displayName', 'role', 'status', 'createdAt', 'updatedAt'])
+        // Guard against any credential or elevated privilege injection
+        && !data.keys().hasAny(['password', 'pass', 'hash', 'salt', 'otp', 'code', 'token', 'isAdmin', 'admin', 'permissions']);
+    }
+
+    // Default catch-all: Deny all reads and writes across the entire database
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // System connectivity diagnostic document (light server check)
+    match /_system/connectionTest {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ============================================================================
+    // USER COLLECTION: users/{userId}
+    // ============================================================================
+    match /users/{userId} {
+      // Rule 1: A user can ONLY get their own private profile.
+      // Cross-user reads are rejected. Collection-wide listing is forbidden.
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      // Rule 2: User profile registration upon phone authentication.
+      // Role is locked to 'player', status to 'active', and UID matches auth token.
+      allow create: if isOwner(userId)
+                    && isValidId(userId)
+                    && isValidNewUser(userId, incoming());
+
+      // Rule 3: Safe Profile Editing.
+      // Only safe fields (displayName, updatedAt, avatar) may be modified.
+      // uid, role, status, and createdAt are strictly IMMUTABLE.
+      allow update: if isOwner(userId)
+                    && isValidId(userId)
+                    // Identity & authorization immutability guarantees:
+                    && incoming().uid == existing().uid
+                    && incoming().role == existing().role
+                    && incoming().status == existing().status
+                    && incoming().createdAt == existing().createdAt
+                    // Only safe keys can be affected:
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt', 'avatar'])
+                    // displayName validation:
+                    && (!incoming().diff(existing()).affectedKeys().hasAny(['displayName']) || isValidDisplayName(incoming().displayName))
+                    // Guard against unauthorized credential injection:
+                    && !incoming().keys().hasAny(['password', 'pass', 'hash', 'salt', 'otp', 'code', 'token', 'isAdmin', 'admin', 'permissions']);
+
+      // Rule 4: User deletion is forbidden from the client.
+      allow delete: if false;
+    }
+  }
+}

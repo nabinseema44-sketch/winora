@@ -1,0 +1,6 @@
+{
+  "name": "WINORA",
+  "description": "Mobile-first virtual-credit gaming platform featuring a dark gaming interface, virtual token balances, game showcase, and account management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

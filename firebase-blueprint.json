@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Secure authenticated player profile document in users/{uid}",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique Firebase Authentication UID matching document ID" },
+        "phoneNumber": { "type": "string", "description": "Verified mobile phone number in E.164 format" },
+        "displayName": { "type": "string", "minLength": 2, "maxLength": 50, "description": "Player display nickname" },
+        "role": { "type": "string", "enum": ["player"], "description": "Player security role. Default and strictly locked to 'player'." },
+        "status": { "type": "string", "enum": ["active"], "description": "Account operational status. Default and locked to 'active'." },
+        "avatar": { "type": "string", "maxLength": 300, "description": "Optional player avatar URL" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of account creation (immutable)" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "ISO timestamp of last profile update" }
+      },
+      "required": ["uid", "phoneNumber", "displayName", "role", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Player profile document. Readable and writable only by the authenticated owner user. Role, status, and UID are immutable."
+    }
+  }
+}
