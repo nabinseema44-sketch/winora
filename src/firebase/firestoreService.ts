@@ -21,7 +21,7 @@ import { handleFirebaseError } from './errorHandling';
  * Client permissions are restricted to:
  *  - Reading user public profiles
  *  - Creating user profile upon signup
- *  - Reading own virtual wallet balance
+ *  - Reading own monetary wallet balance
  *  - Reading public game lobby catalog
  *  - Reading own participation and rewards logs
  *
@@ -62,10 +62,8 @@ export interface UserDocument {
 export interface WalletDocument {
   id: string;
   userId: string;
-  virtualCredits: number;
-  lifetimeEarned: number;
-  lastRefillTimestamp?: string;
-  currencyType: 'VIRTUAL_CREDIT';
+  balance: number;
+  currency: string;
   updatedAt: string;
 }
 
@@ -259,7 +257,7 @@ export async function updateUserProfile(
 // ----------------------------------------------------------------------------
 
 /**
- * Read-only access to user's virtual credit wallet.
+ * Read-only access to user's verified wallet document.
  * Browser WRITES to this collection are blocked by Security Rules.
  */
 export async function getWallet(userId: string): Promise<WalletDocument | null> {

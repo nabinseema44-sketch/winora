@@ -5,13 +5,12 @@ import { GameItem } from '../types.ts';
 interface GamePreviewModalProps {
   game: GameItem | null;
   onClose: () => void;
-  userBalance: number;
+  userBalance?: number;
 }
 
 export const GamePreviewModal: React.FC<GamePreviewModalProps> = ({
   game,
   onClose,
-  userBalance,
 }) => {
   const [demoBet, setDemoBet] = useState(50);
   const [simulatedFeedback, setSimulatedFeedback] = useState<string | null>(null);

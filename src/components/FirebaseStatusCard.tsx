@@ -158,8 +158,8 @@ export const FirebaseStatusCard: React.FC = () => {
         <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
         <span>
           <strong>Security Architecture:</strong> Client is restricted to authenticated profile sync.
-          Virtual wallet balances, rewards, and simulated game outcomes remain strictly server-authoritative
-          via Cloud Functions.
+          Monetary wallet balances, verified transactions, and account outcomes remain strictly server-authoritative
+          via backend services.
         </span>
       </div>
     </div>

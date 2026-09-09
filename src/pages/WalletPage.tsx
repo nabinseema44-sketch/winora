@@ -29,7 +29,8 @@ import {
 
 interface WalletPageProps {
   user: UserProfile | null;
-  transactions: WalletTransaction[];
+  transactions?: WalletTransaction[];
+  ledger?: WalletTransaction[];
   onNavigate?: (page: NavPage) => void;
   onDepositInitiated?: (transaction: WalletTransaction) => void;
   onWithdrawalRequested?: (transaction: WalletTransaction) => void;
@@ -40,12 +41,14 @@ type ModalMode = 'none' | 'deposit' | 'withdrawal';
 
 export const WalletPage: React.FC<WalletPageProps> = ({
   user,
-  transactions,
+  transactions = [],
+  ledger = [],
   onNavigate,
   onDepositInitiated,
   onWithdrawalRequested,
   onCurrencyChange,
 }) => {
+  const transactionList = transactions.length > 0 ? transactions : ledger;
   // Modal state
   const [modalMode, setModalMode] = useState<ModalMode>('none');
 
@@ -241,7 +244,7 @@ export const WalletPage: React.FC<WalletPageProps> = ({
   };
 
   // Filter transactions
-  const filteredTransactions = transactions.filter((t) => {
+  const filteredTransactions = transactionList.filter((t) => {
     if (filterType === 'all') return true;
     if (filterType === 'deposit') return t.type === 'deposit';
     if (filterType === 'withdrawal') return t.type === 'withdrawal';

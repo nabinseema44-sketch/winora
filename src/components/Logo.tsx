@@ -42,13 +42,13 @@ export const Logo: React.FC<LogoProps> = ({ size = 'md', showSubtitle = false })
           <span className={`font-display font-black tracking-widest text-zinc-100 ${current.title}`}>
             WIN<span className="text-amber-400">ORA</span>
           </span>
-          <span className={`rounded-full bg-zinc-800 text-zinc-400 font-semibold border border-zinc-700/60 uppercase tracking-wider ${current.badge}`}>
-            VIRTUAL
+          <span className={`rounded-full bg-zinc-800 text-amber-400 font-semibold border border-zinc-700/60 uppercase tracking-wider ${current.badge}`}>
+            OFFICIAL
           </span>
         </div>
         {showSubtitle && (
           <span className="text-xs text-zinc-400 tracking-wider flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-amber-400 inline" /> Virtual Credit Gaming Lounge
+            <Sparkles className="w-3 h-3 text-amber-400 inline" /> Digital Arcade & Secure Money Wallet
           </span>
         )}
       </div>

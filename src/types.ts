@@ -67,7 +67,6 @@ export interface WalletTransaction {
   createdAt: string;
   description: string;
   destinationAccount?: string;
+  balanceAfter?: number;
+  timestamp?: string;
 }
-
-// Deprecated alias to prevent breaking temporary imports
-export type VirtualLedgerEntry = WalletTransaction;

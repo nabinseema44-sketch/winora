@@ -72,7 +72,7 @@ export const MOCK_GAMES: GameItem[] = [
     category: 'arcade',
     icon: 'Disc',
     accentColor: 'from-yellow-500/20 to-amber-500/20 text-yellow-400 border-yellow-500/30',
-    description: 'Spin the segmented virtual prize wheel for instant credit multipliers.',
+    description: 'Spin the segmented wheel for interactive demo multipliers.',
     minVirtualBet: 20,
     maxVirtualBet: 800,
     playersOnline: 97,

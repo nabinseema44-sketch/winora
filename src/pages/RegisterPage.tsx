@@ -13,6 +13,7 @@ import {
   Edit2,
   ChevronDown,
   User,
+  Sparkles,
 } from 'lucide-react';
 import { Logo } from '../components/Logo.tsx';
 import { NavPage } from '../types.ts';
@@ -266,21 +267,21 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
           <p className="text-xs text-zinc-400 mt-1">
             {step === 'otp'
               ? 'Enter the 6-digit OTP code to finalize account registration'
-              : 'Claim 2,500 Virtual Credits and start simulated play'}
+              : 'Register your verified mobile profile and access your account wallet'}
           </p>
         </div>
 
-        {/* Welcome Bonus Callout */}
+        {/* Verified Registration Callout */}
         <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 to-emerald-500/15 border border-amber-500/30 flex items-center gap-3">
           <div className="p-2 rounded-xl bg-amber-500 text-zinc-950 shrink-0">
             <Gift className="w-5 h-5" />
           </div>
           <div>
             <span className="font-display text-xs font-bold text-amber-300 block">
-              Virtual Starter Grant
+              Verified Member Access
             </span>
             <span className="text-xs text-zinc-200">
-              New accounts receive <strong>+2,500 VC</strong> for free amusement.
+              Instant mobile identity verification and dedicated money wallet account.
             </span>
           </div>
         </div>
@@ -410,7 +411,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
                   className="mt-0.5 rounded bg-zinc-950 border-zinc-700 text-amber-500 focus:ring-0 cursor-pointer"
                 />
                 <span>
-                  I acknowledge that <strong className="text-zinc-200">WINORA</strong> is a virtual credit amusement platform with zero real-money deposits, withdrawals, or gambling payouts.
+                  I acknowledge that <strong className="text-zinc-200">WINORA</strong> account wallet is separate from game simulations, with all payments handled by licensed payment providers.
                 </span>
               </label>
             </div>
@@ -540,15 +541,24 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
               ) : (
                 <>
                   <UserPlus className="w-4 h-4" />
-                  <span>Complete Registration & Claim 2,500 VC</span>
+                  <span>Complete Registration & Access Wallet</span>
                 </>
               )}
             </button>
           </form>
         )}
 
-        {/* Switch to Login */}
-        <div className="pt-4 border-t border-zinc-800/80 text-center">
+        {/* Switch to Login & Demo Sign-In */}
+        <div className="pt-4 border-t border-zinc-800/80 space-y-3 text-center">
+          <button
+            id="register-demo-btn"
+            type="button"
+            onClick={() => onRegisterSuccess('Demo Player', '+91 98765 43210', 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80')}
+            className="w-full py-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-300 font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Instant Demo Sign-In (Preview Mode)</span>
+          </button>
           <p className="text-xs text-zinc-400">
             Already have a WINORA account?{' '}
             <button

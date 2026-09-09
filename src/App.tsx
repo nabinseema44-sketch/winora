@@ -18,7 +18,7 @@ import { LoginPage } from './pages/LoginPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
 
 import { DEFAULT_PLAYER_AVATAR, MOCK_GAMES, INITIAL_LEDGER } from './data/mockData.ts';
-import { GameItem, NavPage, UserProfile, VirtualLedgerEntry } from './types.ts';
+import { GameItem, NavPage, UserProfile, WalletTransaction, CurrencyConfig, DEFAULT_CURRENCY } from './types.ts';
 import { CheckCircle2, Shield, Heart } from 'lucide-react';
 import { onAuthChange, logoutUser } from './firebase/authService.ts';
 import { getUserProfile, createUserProfile } from './firebase/firestoreService.ts';
@@ -28,9 +28,8 @@ export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [games] = useState<GameItem[]>(MOCK_GAMES);
-  const [ledger, setLedger] = useState<VirtualLedgerEntry[]>(INITIAL_LEDGER);
+  const [ledger, setLedger] = useState<WalletTransaction[]>(INITIAL_LEDGER);
   const [selectedGame, setSelectedGame] = useState<GameItem | null>(null);
-  const [dailyRewardClaimed, setDailyRewardClaimed] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Synchronize authenticated Firebase user session
@@ -51,7 +50,8 @@ export default function App() {
               displayName: profile.displayName || firebaseUser.displayName || defaultName,
               phoneNumber: profile.phoneNumber || verifiedPhone,
               avatar: profile.avatar || DEFAULT_PLAYER_AVATAR,
-              virtualCredits: 1000,
+              walletBalance: 2500,
+              currency: DEFAULT_CURRENCY,
               tier: profile.tier || 'Bronze',
               joinedDate: profile.createdAt 
                 ? new Date(profile.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) 
@@ -81,7 +81,8 @@ export default function App() {
                 displayName: fresh.displayName || fallbackName,
                 phoneNumber: fresh.phoneNumber || verifiedPhone,
                 avatar: fresh.avatar || DEFAULT_PLAYER_AVATAR,
-                virtualCredits: 1000,
+                walletBalance: 2500,
+                currency: DEFAULT_CURRENCY,
                 tier: fresh.tier || 'Bronze',
                 joinedDate: fresh.createdAt 
                   ? new Date(fresh.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) 
@@ -127,7 +128,7 @@ export default function App() {
   const handleNavigate = (page: NavPage) => {
     // Prevent unauthenticated users from accessing authenticated pages (wallet, profile)
     if (!user && (page === 'wallet' || page === 'profile')) {
-      showToast(`Please sign in to access your ${page === 'wallet' ? 'Virtual Wallet' : 'Profile'}.`);
+      showToast(`Please sign in to access your ${page === 'wallet' ? 'Account Wallet' : 'Profile'}.`);
       setCurrentPage('login');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -142,37 +143,78 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleClaimDailyReward = () => {
-    if (dailyRewardClaimed || !user) return;
-
-    const rewardAmount = 500;
-    const newBalance = user.virtualCredits + rewardAmount;
-
-    setUser({
-      ...user,
-      virtualCredits: newBalance,
-    });
-
-    const newLedgerEntry: VirtualLedgerEntry = {
-      id: `tx-${Date.now()}`,
-      timestamp: 'Just now',
-      type: 'daily_reward',
-      description: 'Daily Virtual Credit Allowance',
-      amount: rewardAmount,
-      balanceAfter: newBalance,
-    };
-
-    setLedger([newLedgerEntry, ...ledger]);
-    setDailyRewardClaimed(true);
-    showToast(`+${rewardAmount} Free Virtual Credits added to your balance!`);
+  const handleDepositInitiated = (newTx: WalletTransaction) => {
+    // Audit record appended to ledger
+    setLedger([newTx, ...ledger]);
+    // Security Mandate: The client must NOT directly modify the money balance.
+    // In production, balance updates are performed strictly by trusted backend/payment-provider
+    // webhook callbacks after verified settlement.
+    showToast(`Deposit order logged (${newTx.referenceId}). Balance credits upon gateway settlement.`);
   };
 
-  const handleLoginSuccess = (displayName: string) => {
+  const handleWithdrawalRequested = (newTx: WalletTransaction) => {
+    // Payout request logged in ledger
+    setLedger([newTx, ...ledger]);
+    // Security Mandate: Direct bank/UPI transfers are queued for backend verification.
+    showToast(`Withdrawal request submitted (${newTx.referenceId}). Queued for verification.`);
+  };
+
+  const handleCurrencyChange = (newCurrency: CurrencyConfig) => {
+    if (user) {
+      setUser({
+        ...user,
+        currency: newCurrency,
+      });
+      showToast(`Wallet currency changed to ${newCurrency.name}`);
+    }
+  };
+
+  const handleLoginSuccess = (displayName: string, phoneNumber: string = '+91 98765 43210') => {
+    if (!user) {
+      setUser({
+        id: `user-${Date.now().toString().slice(-6)}`,
+        displayName: displayName || 'WINORA Player',
+        phoneNumber: phoneNumber,
+        walletBalance: 2500,
+        currency: DEFAULT_CURRENCY,
+        avatar: DEFAULT_PLAYER_AVATAR,
+        tier: 'Bronze',
+        joinedDate: 'Active',
+        level: 1,
+        role: 'player',
+        status: 'active',
+        stats: {
+          gamesPlayed: 0,
+          highestVirtualWin: 0,
+          favoriteCategory: 'Crash Games',
+          winRate: '0%',
+        },
+      });
+    }
     setCurrentPage('home');
     showToast(`Welcome back, ${displayName}!`);
   };
 
-  const handleRegisterSuccess = (displayName: string) => {
+  const handleRegisterSuccess = (displayName: string, phoneNumber: string = '+91 98765 43210', avatar: string = DEFAULT_PLAYER_AVATAR) => {
+    setUser({
+      id: `user-${Date.now().toString().slice(-6)}`,
+      displayName: displayName || 'New WINORA Player',
+      phoneNumber: phoneNumber,
+      walletBalance: 1000,
+      currency: DEFAULT_CURRENCY,
+      avatar: avatar || DEFAULT_PLAYER_AVATAR,
+      tier: 'Bronze',
+      joinedDate: 'Just now',
+      level: 1,
+      role: 'player',
+      status: 'active',
+      stats: {
+        gamesPlayed: 0,
+        highestVirtualWin: 0,
+        favoriteCategory: 'Arcade',
+        winRate: '0%',
+      },
+    });
     setCurrentPage('home');
     showToast(`Welcome to WINORA, ${displayName}! Virtual Starter Grant activated.`);
   };
@@ -203,7 +245,7 @@ export default function App() {
         currentPage={currentPage}
         onNavigate={handleNavigate}
         user={user}
-        onQuickRefill={handleClaimDailyReward}
+        onOpenDeposit={() => handleNavigate('wallet')}
       />
 
       {/* Floating Toast Feedback */}
@@ -234,8 +276,6 @@ export default function App() {
                 user={user}
                 onNavigate={handleNavigate}
                 onSelectGame={(game) => setSelectedGame(game)}
-                onClaimDailyReward={handleClaimDailyReward}
-                dailyRewardClaimed={dailyRewardClaimed}
               />
             )}
 
@@ -250,16 +290,18 @@ export default function App() {
               user ? (
                 <WalletPage
                   user={user}
+                  transactions={ledger}
                   ledger={ledger}
-                  onClaimDailyReward={handleClaimDailyReward}
-                  dailyRewardClaimed={dailyRewardClaimed}
+                  onDepositInitiated={handleDepositInitiated}
+                  onWithdrawalRequested={handleWithdrawalRequested}
+                  onCurrencyChange={handleCurrencyChange}
                   onNavigate={handleNavigate}
                 />
               ) : (
                 <LoginPage
                   onLoginSuccess={handleLoginSuccess}
                   onNavigate={handleNavigate}
-                  redirectNotice="Sign in with your mobile number to view your virtual wallet balance."
+                  redirectNotice="Sign in with your mobile number to view your money wallet balance and transactions."
                 />
               )
             )}
@@ -310,7 +352,7 @@ export default function App() {
 
           <div className="flex items-center gap-2 text-zinc-400 text-[11px]">
             <Shield className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Virtual Credits hold zero cash redemption value. Strict entertainment simulation.</span>
+            <span>Isolated Account Money Wallet • Licensed Payment Gateways • Games for Entertainment</span>
           </div>
 
           <div className="text-[11px] text-zinc-400 flex items-center justify-center gap-1">
@@ -330,7 +372,6 @@ export default function App() {
       <GamePreviewModal
         game={selectedGame}
         onClose={() => setSelectedGame(null)}
-        userBalance={user ? user.virtualCredits : 0}
       />
     </div>
   );

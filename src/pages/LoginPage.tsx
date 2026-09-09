@@ -453,8 +453,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </form>
         )}
 
-        {/* Switch to Register */}
-        <div className="pt-4 border-t border-zinc-800/80 text-center">
+        {/* Switch to Register & Demo Sign-In */}
+        <div className="pt-4 border-t border-zinc-800/80 space-y-3 text-center">
+          <button
+            id="login-demo-btn"
+            type="button"
+            onClick={() => onLoginSuccess('Demo Player', '+91 98765 43210')}
+            className="w-full py-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-300 font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Instant Demo Sign-In (Preview Mode)</span>
+          </button>
           <p className="text-xs text-zinc-400">
             First time playing on WINORA?{' '}
             <button
@@ -469,7 +478,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         {/* Responsible Entertainment disclaimer */}
         <div className="flex items-center justify-center gap-2 text-[11px] text-zinc-500 text-center">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-          <span>Verified Phone Identity • Virtual Credits Amusement Only</span>
+          <span>Verified Phone Identity • Secure Account Wallet</span>
         </div>
       </div>
 
