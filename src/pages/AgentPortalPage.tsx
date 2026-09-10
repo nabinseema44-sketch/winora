@@ -236,9 +236,9 @@ export const AgentPortalPage: React.FC<AgentPortalPageProps> = ({ currentAgent, 
                     </p>
                   )}
                   {tx.isFirstDeposit && (
-                    <p className="text-purple-300 flex items-center gap-1 font-semibold">
+                    <p className="text-amber-300 flex items-center gap-1 font-semibold">
                       <Sparkles className="w-3.5 h-3.5" />
-                      Player's 1st Deposit: Will automatically trigger 50% Referrer Main + 50% Player Bonus on approval!
+                      Player's 1st Deposit: Will automatically trigger qualifying referral reward to Main Wallet on approval!
                     </p>
                   )}
                 </div>
@@ -312,19 +312,11 @@ export const AgentPortalPage: React.FC<AgentPortalPageProps> = ({ currentAgent, 
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 bg-zinc-950 p-2.5 rounded-lg text-xs">
-                  <div>
-                    <span className="text-[10px] uppercase text-zinc-400 block">Main (Withdrawable)</span>
-                    <span className="font-mono font-bold text-amber-400">
-                      ₹{player.mainBalance.toLocaleString()}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase text-zinc-400 block">Bonus (Play-Only)</span>
-                    <span className="font-mono font-bold text-purple-400">
-                      ₹{player.bonusBalance.toLocaleString()}
-                    </span>
-                  </div>
+                <div className="bg-zinc-950 p-2.5 rounded-lg text-xs flex items-center justify-between">
+                  <span className="text-[10px] uppercase text-zinc-400 font-bold">Main Wallet</span>
+                  <span className="font-mono font-bold text-amber-400">
+                    ₹{player.mainBalance.toLocaleString()}
+                  </span>
                 </div>
 
                 <div className="text-[11px] text-zinc-400 border-t border-zinc-800/80 pt-2 flex items-center justify-between">

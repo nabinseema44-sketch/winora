@@ -156,5 +156,18 @@ service cloud.firestore {
       allow list: if false;
       allow create, update, delete: if false; // All direct client writes are rejected by security rules.
     }
+
+    // ============================================================================
+    // GAME RESULTS: gameResults/{resultId}
+    // Master Security Mandates (Step 13 - Demo Result Declaration & Settlement):
+    // 1. Players and public can view verified winning results and settlement summaries.
+    // 2. Players CANNOT declare results, alter winning numbers, settle rewards,
+    //    or modify result records.
+    // 3. All writes are strictly restricted to trusted server-side execution.
+    // ============================================================================
+    match /gameResults/{resultId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
   }
 }

@@ -182,14 +182,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ user }) => {
                     {isCredit ? '+' : '-'}₹{item.amount.toLocaleString()}
                   </span>
 
-                  <span
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full mt-0.5 ${
-                      item.wallet === 'bonus'
-                        ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
-                        : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                    }`}
-                  >
-                    {item.wallet === 'bonus' ? 'Bonus Wallet (Play-Only)' : 'Main Wallet (Withdrawable)'}
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full mt-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    Main Wallet
                   </span>
                 </div>
               </div>

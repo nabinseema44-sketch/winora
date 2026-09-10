@@ -34,13 +34,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showRoleMenu, setShowRoleMenu] = useState(false);
 
   const mainBalance = user?.mainBalance ?? user?.walletBalance ?? 0;
-  const bonusBalance = user?.bonusBalance ?? 0;
   const role = user?.role || 'player';
 
   const navItems: { id: NavPage; label: string; icon?: React.ReactNode }[] = [
     { id: 'games', label: 'Games' },
     { id: 'history', label: '30D History' },
-    { id: 'wallet', label: 'Dual Wallet' },
+    { id: 'wallet', label: 'Main Wallet' },
   ];
 
   // Add role-based links
@@ -149,22 +148,22 @@ export const Navbar: React.FC<NavbarProps> = ({
           })}
         </nav>
 
-        {/* Right Section: Dual Wallet Pills & Controls */}
+        {/* Right Section: Main Wallet Pill & Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
           {user ? (
             <>
-              {/* Dual Wallet Display (Main Withdrawable + Bonus Play-Only) */}
+              {/* Single Main Wallet Display */}
               <div className="flex items-center gap-1 sm:gap-2">
                 {/* Main Wallet Pill */}
                 <button
                   id="nav-wallet-pill-btn"
                   onClick={() => onNavigate('wallet')}
-                  title="Main Wallet (Withdrawable)"
+                  title="Main Wallet"
                   className="flex items-center bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-amber-500/40 rounded-full pl-2.5 sm:pl-3 pr-1 py-1 transition-all cursor-pointer"
                 >
                   <div className="flex flex-col text-left pr-1.5 sm:pr-2">
                     <span className="text-[8px] uppercase font-bold tracking-wider text-amber-400 leading-none">
-                      Main (Cash)
+                      Main Wallet
                     </span>
                     <span className="text-xs sm:text-sm font-black text-zinc-100 tabular-nums">
                       ₹{mainBalance.toLocaleString()}
@@ -181,23 +180,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className="bg-amber-500 hover:bg-amber-400 text-zinc-950 p-1 sm:p-1.5 rounded-full transition-all shadow-sm active:scale-95 flex items-center justify-center cursor-pointer"
                   >
                     <ArrowDownLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
-                  </div>
-                </button>
-
-                {/* Bonus Wallet Pill */}
-                <button
-                  onClick={() => onNavigate('wallet')}
-                  title="Bonus Wallet (Play-Only)"
-                  className="hidden sm:flex items-center bg-zinc-900 border border-purple-500/30 rounded-full px-2.5 py-1 transition-all cursor-pointer"
-                >
-                  <Coins className="w-3 h-3 text-purple-400 mr-1.5" />
-                  <div className="flex flex-col text-left">
-                    <span className="text-[8px] uppercase font-bold tracking-wider text-purple-400 leading-none">
-                      Bonus (Play-Only)
-                    </span>
-                    <span className="text-xs font-black text-purple-300 tabular-nums">
-                      ₹{bonusBalance.toLocaleString()}
-                    </span>
                   </div>
                 </button>
               </div>

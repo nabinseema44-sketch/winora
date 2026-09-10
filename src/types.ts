@@ -67,9 +67,8 @@ export interface UserProfile {
   id: string;
   displayName: string;
   phoneNumber: string;
-  walletBalance: number; // Backwards-compatible (main balance)
-  mainBalance: number;   // Withdrawable Main Wallet
-  bonusBalance: number;  // Non-withdrawable Bonus Wallet (Play-Only)
+  walletBalance: number; // Main Wallet demo credit balance
+  mainBalance: number;   // Main Wallet demo credits
   currency: CurrencyConfig;
   avatar: string;
   tier: 'Bronze' | 'Silver' | 'Gold' | 'Diamond';
@@ -129,7 +128,7 @@ export interface BidRecord {
   userName: string;
   number: number; // 0 to 99
   amount: number;
-  walletUsed: 'main' | 'bonus';
+  walletUsed: 'main';
   isGreen: boolean; // For Hourly Dhamaka: 50 green (00-49), 50 red (50-99)
   status: 'placed' | 'won' | 'lost' | 'refunded';
   payoutAmount: number;
@@ -164,7 +163,7 @@ export interface ActivityHistoryItem {
   type: 'bid' | 'win' | 'refund' | 'referral' | 'deposit' | 'withdrawal';
   title: string;
   amount: number;
-  wallet: 'main' | 'bonus';
+  wallet: 'main';
   status: 'completed' | 'pending' | 'rejected' | 'won' | 'refunded';
   timestamp: string;
   details: string;

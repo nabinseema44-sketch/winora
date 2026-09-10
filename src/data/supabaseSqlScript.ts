@@ -8,7 +8,7 @@ export const WINORA_SUPABASE_SQL = `-- =========================================
 -- Includes:
 -- 1. Tables: users, wallets, transactions, bids, game_rounds
 -- 2. Stored Procedures & Triggers:
---    - 50/50 First Deposit Referral Trigger (50% Main to Referrer, 50% Bonus to Player)
+--    - First Deposit Referral Trigger (50% Main to Referrer)
 --    - 10% All-time Deposit Agent Commission Trigger
 --    - 15-Minute Bidding Freeze Check Trigger
 --    - Hourly Dhamaka 80% Green Protection Refund Engine
@@ -39,11 +39,10 @@ CREATE TABLE IF NOT EXISTS public.users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Table: wallets (Dual Wallet System)
+-- Table: wallets (Single Main Wallet System)
 CREATE TABLE IF NOT EXISTS public.wallets (
     user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
     main_balance NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (main_balance >= 0),
-    bonus_balance NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (bonus_balance >= 0),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -67,7 +66,7 @@ CREATE TABLE IF NOT EXISTS public.bids (
     user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
     number INT NOT NULL CHECK (number >= 0 AND number <= 99),
     amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
-    wallet_type VARCHAR(10) NOT NULL CHECK (wallet_type IN ('main', 'bonus')),
+    wallet_type VARCHAR(10) NOT NULL DEFAULT 'main' CHECK (wallet_type IN ('main')),
     is_green BOOLEAN NOT NULL DEFAULT FALSE,
     status VARCHAR(20) NOT NULL DEFAULT 'placed' CHECK (status IN ('placed', 'won', 'lost', 'refunded')),
     payout_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00,

@@ -69,6 +69,24 @@
         "sourceReference": { "type": "string", "description": "Server-side webhook/settlement reference" }
       },
       "required": ["auditId", "uid", "transactionId", "operation", "amount", "previousBalance", "newBalance", "timestamp", "sourceReference"]
+    },
+    "GameResult": {
+      "title": "GameResult",
+      "description": "Server-authoritative winning number declaration and settlement record in gameResults/{resultId}. Non-writable by client.",
+      "type": "object",
+      "properties": {
+        "resultId": { "type": "string", "description": "Unique result identifier" },
+        "gameId": { "type": "string", "description": "Identifier of the game (e.g. game_x, hourly_dhamaka)" },
+        "roundId": { "type": "string", "description": "Identifier of the settled round" },
+        "winningNumber": { "type": "string", "description": "Exact two-digit winning number string ('00'-'99')" },
+        "declaredBy": { "type": "string", "description": "Master actor ID who confirmed declaration" },
+        "declaredAt": { "type": "string", "format": "date-time", "description": "Timestamp of declaration" },
+        "ruleVersion": { "type": "string", "description": "Settlement engine rule version" },
+        "status": { "type": "string", "enum": ["PROCESSING", "COMPLETED", "FAILED"], "description": "Lifecycle status" },
+        "settlementId": { "type": "string", "description": "Unique settlement transaction ID" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of record creation" }
+      },
+      "required": ["resultId", "gameId", "roundId", "winningNumber", "declaredBy", "declaredAt", "ruleVersion", "status", "settlementId", "createdAt"]
     }
   },
   "firestore": {
@@ -87,6 +105,10 @@
     "/wallet_audits/{auditId}": {
       "schema": "WalletAudit",
       "description": "Immutable financial audit records. Read-only by owner user. Non-writable by client."
+    },
+    "/gameResults/{resultId}": {
+      "schema": "GameResult",
+      "description": "Publicly readable round result and settlement audit record. Non-writable by client."
     }
   }
 }

@@ -83,7 +83,6 @@ export const MOCK_AGENTS: UserProfile[] = [
     phoneNumber: '+91 98765 11223',
     walletBalance: 45000,
     mainBalance: 45000,
-    bonusBalance: 0,
     currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     tier: 'Diamond',
@@ -106,7 +105,6 @@ export const MOCK_AGENTS: UserProfile[] = [
     phoneNumber: '+91 98111 22334',
     walletBalance: 32000,
     mainBalance: 32000,
-    bonusBalance: 0,
     currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
     avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
     tier: 'Gold',
@@ -132,7 +130,6 @@ export const MOCK_MASTER: UserProfile = {
   phoneNumber: '+91 90000 00001',
   walletBalance: 1250000,
   mainBalance: 1250000,
-  bonusBalance: 0,
   currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   tier: 'Diamond',
@@ -156,8 +153,7 @@ export const DEFAULT_PLAYER: UserProfile = {
   displayName: 'Arjun Mehta',
   phoneNumber: '+91 98765 43210',
   walletBalance: 3500,
-  mainBalance: 2500, // Withdrawable
-  bonusBalance: 1000, // Play-Only Bonus
+  mainBalance: 3500,
   currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
   avatar: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
   tier: 'Silver',
@@ -260,7 +256,7 @@ function generateSeedBids(): BidRecord[] {
       userName: idx % 2 === 0 ? 'Arjun Mehta' : 'Rohan Patel',
       number: num,
       amount: (idx + 1) * 100,
-      walletUsed: idx % 3 === 0 ? 'bonus' : 'main',
+      walletUsed: 'main',
       isGreen: isNumberGreen(num),
       status: 'placed',
       payoutAmount: 0,
@@ -280,7 +276,7 @@ function generateSeedBids(): BidRecord[] {
       userName: idx % 2 === 0 ? 'Arjun Mehta' : 'Karan Singh',
       number: num,
       amount: (idx + 2) * 150,
-      walletUsed: idx % 2 === 0 ? 'main' : 'bonus',
+      walletUsed: 'main',
       isGreen: isNumberGreen(num),
       status: 'placed',
       payoutAmount: 0,
@@ -321,7 +317,7 @@ export const INITIAL_HANDSHAKES: HandshakeTransaction[] = [
     type: 'deposit',
     status: 'pending',
     createdAt: new Date(Date.now() - 40 * 60000).toISOString(),
-    isFirstDeposit: true, // Will trigger 50% referral bonus + 10% agent commission!
+    isFirstDeposit: true, // Will trigger referral bonus + 10% agent commission!
     notes: 'First-time deposit via GPay ref: GP-392019482',
   },
   {
@@ -349,12 +345,12 @@ export const INITIAL_HISTORY: ActivityHistoryItem[] = [
   {
     id: 'act-1',
     type: 'referral',
-    title: 'Referral Bonus (50% Main / 50% Bonus)',
+    title: 'Referral Reward (Main Wallet)',
     amount: 500,
-    wallet: 'bonus',
+    wallet: 'main',
     status: 'completed',
     timestamp: new Date(Date.now() - 24 * 3600000).toISOString(),
-    details: 'Received ₹500 Bonus Wallet credit from Sumit first deposit.',
+    details: 'Received ₹500 Main Wallet credit from Sumit first qualifying deposit.',
     referenceId: 'REF-78491',
   },
   {
@@ -377,7 +373,7 @@ export const INITIAL_HISTORY: ActivityHistoryItem[] = [
     wallet: 'main',
     status: 'refunded',
     timestamp: new Date(Date.now() - 3 * 3600000).toISOString(),
-    details: 'Bet ₹300 on Green #24. Round settled on #68. 80% refund (₹240) credited.',
+    details: 'Bet ₹300 on Green #24. Round settled on #68. 80% refund (₹240) credited to Main Wallet.',
     gameName: 'Hourly Dhamaka',
     referenceId: 'REFUND-GRN-24',
   },
@@ -410,7 +406,6 @@ class WinoraStateManager {
       phoneNumber: '+91 98222 33445',
       walletBalance: 1500,
       mainBalance: 1500,
-      bonusBalance: 0,
       currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
       avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
       tier: 'Bronze',
@@ -430,8 +425,7 @@ class WinoraStateManager {
       displayName: 'Sumit Joshi',
       phoneNumber: '+91 98333 44556',
       walletBalance: 8200,
-      mainBalance: 6500,
-      bonusBalance: 1700,
+      mainBalance: 8200,
       currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
       avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
       tier: 'Gold',
@@ -530,8 +524,7 @@ class WinoraStateManager {
       displayName: params.displayName,
       phoneNumber: params.phoneNumber,
       walletBalance: 1000,
-      mainBalance: 0,
-      bonusBalance: 1000,
+      mainBalance: 1000,
       currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
       avatar: params.avatar || 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
       tier: 'Bronze',
@@ -597,14 +590,15 @@ class WinoraStateManager {
 
   // ---------------------------------------------------------------------------
   // BIDDING & FREEZE ENGINE
+  // Single Main Wallet Model
   // Timing Rule: Bidding strictly freezes 15 minutes prior to result declaration
   // ---------------------------------------------------------------------------
   public placeBids(params: {
     gameId: WinoraGameId;
     bids: { number: number; amount: number }[];
-    walletType: 'main' | 'bonus';
+    walletType?: 'main';
   }): { success: boolean; message: string; totalDebited: number } {
-    const { gameId, bids, walletType } = params;
+    const { gameId, bids } = params;
     const round = this.rounds[gameId];
 
     if (!round) {
@@ -627,25 +621,18 @@ class WinoraStateManager {
       return { success: false, message: 'Please enter a valid bid amount.', totalDebited: 0 };
     }
 
-    // Check balance in chosen wallet
-    const available =
-      walletType === 'bonus' ? this.currentUser.bonusBalance : this.currentUser.mainBalance;
-
-    if (available < totalAmount) {
+    // Check balance in Main Wallet
+    if (this.currentUser.mainBalance < totalAmount) {
       return {
         success: false,
-        message: `Insufficient ${walletType === 'bonus' ? 'Bonus' : 'Main'} Wallet balance (Available: ₹${available.toLocaleString()}).`,
+        message: `Insufficient Main Wallet balance (Available: ₹${this.currentUser.mainBalance.toLocaleString()}).`,
         totalDebited: 0,
       };
     }
 
-    // Deduct from wallet
-    if (walletType === 'bonus') {
-      this.currentUser.bonusBalance -= totalAmount;
-    } else {
-      this.currentUser.mainBalance -= totalAmount;
-    }
-    this.currentUser.walletBalance = this.currentUser.mainBalance + this.currentUser.bonusBalance;
+    // Deduct from Main Wallet
+    this.currentUser.mainBalance -= totalAmount;
+    this.currentUser.walletBalance = this.currentUser.mainBalance;
 
     const gameConfig = WINORA_GAMES.find((g) => g.id === gameId);
 
@@ -661,7 +648,7 @@ class WinoraStateManager {
         userName: this.currentUser.displayName,
         number: b.number,
         amount: b.amount,
-        walletUsed: walletType,
+        walletUsed: 'main',
         isGreen,
         status: 'placed',
         payoutAmount: 0,
@@ -680,7 +667,7 @@ class WinoraStateManager {
       type: 'bid',
       title: `${gameConfig?.name}: Placed ${bids.length} Bid(s)`,
       amount: totalAmount,
-      wallet: walletType,
+      wallet: 'main',
       status: 'completed',
       timestamp: new Date().toISOString(),
       details: `Numbers: ${bids.map((b) => `#${b.number.toString().padStart(2, '0')} (₹${b.amount})`).join(', ')}`,
@@ -690,7 +677,7 @@ class WinoraStateManager {
     this.notify();
     return {
       success: true,
-      message: `Successfully placed ${bids.length} bid(s) totaling ₹${totalAmount.toLocaleString()} using ${walletType === 'bonus' ? 'Bonus' : 'Main'} Wallet.`,
+      message: `Successfully placed ${bids.length} bid(s) totaling ₹${totalAmount.toLocaleString()} using Main Wallet.`,
       totalDebited: totalAmount,
     };
   }
@@ -722,7 +709,7 @@ class WinoraStateManager {
       }
       // Hold the withdrawal amount
       this.currentUser.mainBalance -= amount;
-      this.currentUser.walletBalance = this.currentUser.mainBalance + this.currentUser.bonusBalance;
+      this.currentUser.walletBalance = this.currentUser.mainBalance;
     }
 
     const tx: HandshakeTransaction = {
@@ -765,6 +752,8 @@ class WinoraStateManager {
   }
 
   // Agent Dual-Confirmation Handshake Approval
+  private processedReferrals: Set<string> = new Set();
+
   public approveHandshake(transactionId: string): { success: boolean; message: string } {
     const tx = this.handshakes.find((t) => t.id === transactionId);
     if (!tx) return { success: false, message: 'Transaction not found.' };
@@ -779,38 +768,41 @@ class WinoraStateManager {
     if (tx.type === 'deposit') {
       // 1. Credit player main wallet
       player.mainBalance += tx.amount;
-      player.walletBalance = player.mainBalance + player.bonusBalance;
+      player.walletBalance = player.mainBalance;
 
       // 2. REFERRAL TRIGGER: Player -> Player 1st Deposit
-      // 50% Main to Referrer, 50% Bonus to New Player (Debited from Master)
-      if (!player.hasMadeFirstDeposit && player.referrerId) {
+      // 100% credited to Main Wallet with strict idempotency (credited once per qualifying referral)
+      const referralKey = `ref-qualifying-${player.id}`;
+      if (!player.hasMadeFirstDeposit && player.referrerId && !this.processedReferrals.has(referralKey)) {
+        this.processedReferrals.add(referralKey);
         player.hasMadeFirstDeposit = true;
-        const halfBonus = Math.floor(tx.amount * 0.5);
+        const rewardAmount = Math.floor(tx.amount * 0.5);
 
-        // Credit new player 50% bonus
-        player.bonusBalance += halfBonus;
-        player.walletBalance = player.mainBalance + player.bonusBalance;
+        // Credit new player reward to Main Wallet
+        player.mainBalance += rewardAmount;
+        player.walletBalance = player.mainBalance;
 
-        // Credit referrer 50% main balance
+        // Credit referrer reward to Main Wallet
         const referrer = this.players.find((p) => p.id === player.referrerId);
         if (referrer) {
-          referrer.mainBalance += halfBonus;
-          referrer.walletBalance = referrer.mainBalance + referrer.bonusBalance;
+          referrer.mainBalance += rewardAmount;
+          referrer.walletBalance = referrer.mainBalance;
         }
 
         // Debit from Master Pool
-        this.masterProfile.mainBalance -= halfBonus * 2;
+        this.masterProfile.mainBalance -= rewardAmount * 2;
         this.masterProfile.walletBalance = this.masterProfile.mainBalance;
 
         this.history.unshift({
           id: `act-ref-${Date.now()}`,
           type: 'referral',
-          title: 'Referral Bonus Triggered (50/50 Handshake)',
-          amount: halfBonus,
-          wallet: 'bonus',
+          title: 'Referral Reward (Main Wallet)',
+          amount: rewardAmount,
+          wallet: 'main',
           status: 'completed',
           timestamp: new Date().toISOString(),
-          details: `First deposit referral: ₹${halfBonus} Bonus to ${player.displayName}, ₹${halfBonus} Main to Referrer.`,
+          details: `First qualifying deposit referral: ₹${rewardAmount} credited to ${player.displayName} & referrer Main Wallets (Key: ${referralKey}).`,
+          referenceId: referralKey,
         });
       }
 
@@ -818,7 +810,7 @@ class WinoraStateManager {
       if (agent) {
         const commission = Math.floor(tx.amount * 0.1);
         agent.mainBalance += commission;
-        agent.walletBalance = agent.mainBalance + agent.bonusBalance;
+        agent.walletBalance = agent.mainBalance;
         this.masterProfile.mainBalance -= commission;
 
         this.history.unshift({
@@ -829,7 +821,7 @@ class WinoraStateManager {
           wallet: 'main',
           status: 'completed',
           timestamp: new Date().toISOString(),
-          details: `Agent ${agent.displayName} earned 10% commission on deposit of ₹${tx.amount}.`,
+          details: `Agent ${agent.displayName} earned 10% commission on deposit of ₹${tx.amount}. Credited to Main Wallet.`,
         });
       }
     } else {
@@ -839,7 +831,7 @@ class WinoraStateManager {
     this.notify();
     return {
       success: true,
-      message: `Dual-confirmation handshake approved! ${tx.type === 'deposit' ? 'Funds & commissions credited.' : 'Withdrawal completed successfully.'}`,
+      message: `Dual-confirmation handshake approved! ${tx.type === 'deposit' ? 'Funds & commissions credited to Main Wallet.' : 'Withdrawal completed successfully.'}`,
     };
   }
 
@@ -856,7 +848,7 @@ class WinoraStateManager {
     if (tx.type === 'withdrawal') {
       const player = this.players.find((p) => p.id === tx.senderId) || this.currentUser;
       player.mainBalance += tx.amount;
-      player.walletBalance = player.mainBalance + player.bonusBalance;
+      player.walletBalance = player.mainBalance;
     }
 
     this.notify();
@@ -982,7 +974,7 @@ class WinoraStateManager {
         bid.status = 'won';
         bid.payoutAmount = winPayout;
         player.mainBalance += winPayout;
-        player.walletBalance = player.mainBalance + player.bonusBalance;
+        player.walletBalance = player.mainBalance;
         totalWinnersPaid += winPayout;
 
         this.history.unshift({
@@ -1002,7 +994,7 @@ class WinoraStateManager {
         bid.status = 'refunded';
         bid.refundAmount = refundAmt;
         player.mainBalance += refundAmt;
-        player.walletBalance = player.mainBalance + player.bonusBalance;
+        player.walletBalance = player.mainBalance;
         totalRefundsPaid += refundAmt;
 
         this.history.unshift({

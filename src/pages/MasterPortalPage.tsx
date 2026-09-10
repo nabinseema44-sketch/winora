@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Sparkles,
   ChevronDown,
+  Trophy,
 } from 'lucide-react';
 import {
   UserProfile,
@@ -25,6 +26,7 @@ import {
   NumberRiskItem,
 } from '../types.ts';
 import { winoraEngine, WINORA_GAMES } from '../services/winoraEngine.ts';
+import { MasterSettlementPanel } from '../components/MasterSettlementPanel.tsx';
 
 interface MasterPortalPageProps {
   onToast: (msg: string) => void;
@@ -35,6 +37,7 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({
   onToast,
   onOpenSqlModal,
 }) => {
+  const [activeTab, setActiveTab] = useState<'settlement' | 'risk' | 'transfer' | 'users'>('settlement');
   const [selectedGameId, setSelectedGameId] = useState<WinoraGameId>('hourly_dhamaka');
   const [riskData, setRiskData] = useState<{
     items: NumberRiskItem[];
@@ -209,7 +212,72 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({
         </div>
       </div>
 
-      {/* 2. LIVE 00–99 RISK & EXPOSURE CALCULATOR */}
+      {/* Navigation Tab Bar for Master Portal */}
+      <div className="flex border-b border-zinc-800 gap-2 pb-1 overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setActiveTab('settlement')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'settlement'
+              ? 'bg-amber-500 text-zinc-950 shadow-lg shadow-amber-500/20'
+              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+          }`}
+        >
+          <Trophy className="w-4 h-4" />
+          <span>Result Declaration & Settlement (Step 13)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('risk')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'risk'
+              ? 'bg-amber-500 text-zinc-950 shadow-lg shadow-amber-500/20'
+              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+          }`}
+        >
+          <Calculator className="w-4 h-4" />
+          <span>00–99 Risk & P&L Matrix</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('transfer')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'transfer'
+              ? 'bg-amber-500 text-zinc-950 shadow-lg shadow-amber-500/20'
+              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+          }`}
+        >
+          <ArrowRightLeft className="w-4 h-4" />
+          <span>Agent Liquidity Transfers</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('users')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+            activeTab === 'users'
+              ? 'bg-amber-500 text-zinc-950 shadow-lg shadow-amber-500/20'
+              : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>User Directory & Bans</span>
+        </button>
+      </div>
+
+      {/* TAB 1: RESULT DECLARATION & SETTLEMENT ENGINE */}
+      {activeTab === 'settlement' && (
+        <MasterSettlementPanel
+          onToast={onToast}
+          actorId={currentUser.id}
+          actorRole={currentUser.role}
+        />
+      )}
+
+      {/* TAB 2: LIVE 00–99 RISK & EXPOSURE CALCULATOR */}
+      {activeTab === 'risk' && (
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl space-y-4 p-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
           <div>
@@ -371,11 +439,11 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({
           </table>
         </div>
       </div>
+      )}
 
-      {/* 3. Financial Workflow & 4. User Management */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Financial Workflow: Transfer Coins to Agents */}
-        <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4">
+      {/* TAB 3: AGENT LIQUIDITY TRANSFERS */}
+      {activeTab === 'transfer' && (
+        <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4 max-w-2xl mx-auto">
           <div className="flex items-center gap-2">
             <ArrowRightLeft className="w-5 h-5 text-amber-400" />
             <h3 className="text-base font-black text-zinc-100 font-display">
@@ -430,9 +498,11 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({
             </button>
           </form>
         </div>
+      )}
 
-        {/* User Management: Search & Block / Unblock */}
-        <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4">
+      {/* TAB 4: USER & AGENT DIRECTORY */}
+      {activeTab === 'users' && (
+        <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4 max-w-3xl mx-auto">
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-cyan-400" />
             <h3 className="text-base font-black text-zinc-100 font-display">
@@ -454,11 +524,11 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({
             />
           </div>
 
-          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
             {filteredUsers.map((u) => (
               <div
                 key={u.id}
-                className="bg-zinc-950 border border-zinc-800 p-2.5 rounded-xl flex items-center justify-between text-xs"
+                className="bg-zinc-950 border border-zinc-800 p-3 rounded-xl flex items-center justify-between text-xs"
               >
                 <div>
                   <div className="flex items-center gap-1.5">
@@ -503,7 +573,7 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({
             ))}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
