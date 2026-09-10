@@ -9,18 +9,23 @@ export interface AuthenticatedRequest extends Request {
 }
 
 async function resolveRole(uid: string): Promise<ServerRole> {
-  const db = getAdminDb();
-  const adminSnap = await db.collection('admins').doc(uid).get();
-  if (adminSnap.exists) {
-    const role = adminSnap.data()?.role;
-    if (role === 'master' || role === 'agent') return role;
-    return 'master';
-  }
+  try {
+    const db = getAdminDb();
+    const adminSnap = await db.collection('admins').doc(uid).get();
+    if (adminSnap.exists) {
+      const role = adminSnap.data()?.role;
+      if (role === 'master' || role === 'agent') return role;
+      return 'master';
+    }
 
-  const userSnap = await db.collection('users').doc(uid).get();
-  const role = userSnap.data()?.role;
-  if (role === 'agent') return 'agent';
-  return 'player';
+    const userSnap = await db.collection('users').doc(uid).get();
+    const role = userSnap.data()?.role;
+    if (role === 'agent') return 'agent';
+    return 'player';
+  } catch (err) {
+    console.warn('[AUTH] Could not resolve role from Firestore, defaulting to player:', err);
+    return 'player';
+  }
 }
 
 export async function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {

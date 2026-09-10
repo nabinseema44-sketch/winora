@@ -15,8 +15,9 @@ import {
   AlertCircle,
   Copy,
   TrendingUp,
+  Wallet,
 } from 'lucide-react';
-import { UserProfile, HandshakeTransaction } from '../types.ts';
+import { UserProfile, HandshakeTransaction, formatPaise } from '../types.ts';
 import { winoraEngine } from '../services/winoraEngine.ts';
 
 interface AgentPortalPageProps {
@@ -27,6 +28,9 @@ interface AgentPortalPageProps {
 export const AgentPortalPage: React.FC<AgentPortalPageProps> = ({ currentAgent, onToast }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<'pending' | 'players' | 'completed'>('pending');
+  const [showWithdrawCommModal, setShowWithdrawCommModal] = useState(false);
+  const [commAmount, setCommAmount] = useState('');
+  const [commUpiId, setCommUpiId] = useState('agent.vikram@icici');
 
   const handshakes = winoraEngine.getHandshakes();
   const allPlayers = winoraEngine.getPlayers();
@@ -64,10 +68,27 @@ export const AgentPortalPage: React.FC<AgentPortalPageProps> = ({ currentAgent, 
     onToast(res.message);
   };
 
-  // Commission totals
-  const totalCommissionEarned = completedHandshakes
-    .filter((h) => h.type === 'deposit' && h.status === 'completed')
-    .reduce((sum, h) => sum + Math.floor(h.amount * 0.1), 0);
+  const handleWithdrawCommission = (e: React.FormEvent) => {
+    e.preventDefault();
+    const num = Number(commAmount);
+    if (!num || num <= 0) {
+      onToast('Please enter a valid withdrawal amount.');
+      return;
+    }
+    const amountPaise = Math.round(num * 100);
+    const res = winoraEngine.requestAgentCommissionWithdrawal({
+      agentId: currentAgent.id,
+      amountPaise,
+      upiId: commUpiId,
+    });
+    onToast(res.message);
+    if (res.success) {
+      setShowWithdrawCommModal(false);
+      setCommAmount('');
+    }
+  };
+
+  const commissionBalancePaise = currentAgent.agentCommissionBalancePaise || 0;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
@@ -97,30 +118,96 @@ export const AgentPortalPage: React.FC<AgentPortalPageProps> = ({ currentAgent, 
           </div>
         </div>
 
-        {/* Quick Agent Metrics */}
+        {/* Quick Agent Metrics with Strict Separation */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full md:w-auto">
           <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 text-center">
-            <span className="text-[10px] uppercase font-bold text-zinc-400 block">Agent Wallet</span>
+            <span className="text-[10px] uppercase font-bold text-zinc-400 block">Withdrawable Wallet</span>
             <span className="text-sm sm:text-base font-black text-amber-400 font-mono">
-              ₹{currentAgent.mainBalance.toLocaleString()}
+              {formatPaise(currentAgent.withdrawableBalancePaise || currentAgent.mainBalance * 100)}
             </span>
           </div>
 
-          <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 text-center">
-            <span className="text-[10px] uppercase font-bold text-emerald-400 block">10% Comm.</span>
-            <span className="text-sm sm:text-base font-black text-emerald-400 font-mono">
-              ₹{totalCommissionEarned.toLocaleString()}
+          <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 text-center relative group">
+            <span className="text-[10px] uppercase font-bold text-emerald-400 block">Separated Comm.</span>
+            <span className="text-sm sm:text-base font-black text-emerald-400 font-mono block">
+              {formatPaise(commissionBalancePaise)}
             </span>
+            <button
+              onClick={() => setShowWithdrawCommModal(true)}
+              className="mt-1 text-[9px] font-bold text-zinc-300 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 px-2 py-0.5 rounded transition-all cursor-pointer"
+            >
+              Payout
+            </button>
           </div>
 
           <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 text-center">
-            <span className="text-[10px] uppercase font-bold text-cyan-400 block">Players</span>
+            <span className="text-[10px] uppercase font-bold text-cyan-400 block">Assigned</span>
             <span className="text-sm sm:text-base font-black text-cyan-300 font-mono">
               {assignedPlayers.length}
             </span>
           </div>
         </div>
       </div>
+
+      {/* Commission Payout Modal */}
+      {showWithdrawCommModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-emerald-400" />
+                Withdraw Commission Balance
+              </h3>
+              <button
+                onClick={() => setShowWithdrawCommModal(false)}
+                className="text-zinc-400 hover:text-zinc-200 text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-zinc-400">
+              Agent commission is strictly separated from player balances and withdrawable directly to your UPI.
+            </p>
+            <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 text-xs flex justify-between items-center">
+              <span className="text-zinc-400">Available Commission:</span>
+              <span className="font-mono font-bold text-emerald-400">
+                {formatPaise(commissionBalancePaise)}
+              </span>
+            </div>
+            <form onSubmit={handleWithdrawCommission} className="space-y-3">
+              <div>
+                <label className="text-[10px] font-bold uppercase text-zinc-400 block mb-1">
+                  Amount (₹)
+                </label>
+                <input
+                  type="number"
+                  value={commAmount}
+                  onChange={(e) => setCommAmount(e.target.value)}
+                  placeholder="e.g. 500"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-zinc-100 font-mono focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase text-zinc-400 block mb-1">
+                  Payout UPI ID
+                </label>
+                <input
+                  type="text"
+                  value={commUpiId}
+                  onChange={(e) => setCommUpiId(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 font-mono focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-bold transition-all cursor-pointer shadow-lg shadow-emerald-500/20"
+              >
+                Submit Commission Payout
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
@@ -313,10 +400,15 @@ export const AgentPortalPage: React.FC<AgentPortalPageProps> = ({ currentAgent, 
                 </div>
 
                 <div className="bg-zinc-950 p-2.5 rounded-lg text-xs flex items-center justify-between">
-                  <span className="text-[10px] uppercase text-zinc-400 font-bold">Main Wallet</span>
-                  <span className="font-mono font-bold text-amber-400">
-                    ₹{player.mainBalance.toLocaleString()}
-                  </span>
+                  <span className="text-[10px] uppercase text-zinc-400 font-bold">Withdrawable / Bonus</span>
+                  <div className="font-mono text-right">
+                    <span className="font-bold text-emerald-400">
+                      {formatPaise(player.withdrawableBalancePaise || player.mainBalance * 100)}
+                    </span>
+                    <span className="text-amber-400/80 text-[11px] ml-1.5">
+                      + {formatPaise(player.bonusBalancePaise || 0)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="text-[11px] text-zinc-400 border-t border-zinc-800/80 pt-2 flex items-center justify-between">

@@ -152,21 +152,28 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex items-center gap-2 sm:gap-3">
           {user ? (
             <>
-              {/* Single Main Wallet Display */}
+              {/* Authoritative Dual Balance Display */}
               <div className="flex items-center gap-1 sm:gap-2">
                 {/* Main Wallet Pill */}
                 <button
                   id="nav-wallet-pill-btn"
                   onClick={() => onNavigate('wallet')}
-                  title="Main Wallet"
+                  title="Withdrawable & Bonus Balance"
                   className="flex items-center bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-amber-500/40 rounded-full pl-2.5 sm:pl-3 pr-1 py-1 transition-all cursor-pointer"
                 >
                   <div className="flex flex-col text-left pr-1.5 sm:pr-2">
-                    <span className="text-[8px] uppercase font-bold tracking-wider text-amber-400 leading-none">
-                      Main Wallet
-                    </span>
-                    <span className="text-xs sm:text-sm font-black text-zinc-100 tabular-nums">
-                      ₹{mainBalance.toLocaleString()}
+                    <div className="flex items-center gap-1 leading-none">
+                      <span className="text-[8px] uppercase font-bold tracking-wider text-emerald-400">
+                        Withdrawable
+                      </span>
+                      {(user.bonusBalancePaise || 0) > 0 && (
+                        <span className="text-[8px] font-bold text-amber-400">
+                          +₹{((user.bonusBalancePaise || 0) / 100).toLocaleString()} Bonus
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs sm:text-sm font-black text-zinc-100 tabular-nums mt-0.5">
+                      ₹{((user.withdrawableBalancePaise ?? (mainBalance * 100)) / 100).toLocaleString()}
                     </span>
                   </div>
 
@@ -176,7 +183,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       if (onOpenDeposit) onOpenDeposit();
                       else onNavigate('wallet');
                     }}
-                    title="Deposit Handshake"
+                    title="Manual Deposit (UTR)"
                     className="bg-amber-500 hover:bg-amber-400 text-zinc-950 p-1 sm:p-1.5 rounded-full transition-all shadow-sm active:scale-95 flex items-center justify-center cursor-pointer"
                   >
                     <ArrowDownLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />

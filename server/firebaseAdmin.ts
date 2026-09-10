@@ -16,13 +16,23 @@ function getAdminApp(): App {
 
   const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   if (rawServiceAccount) {
-    const parsed = JSON.parse(rawServiceAccount);
-    adminApp = initializeApp({
-      credential: cert(parsed),
-      projectId: parsed.project_id,
-    });
-  } else {
-    adminApp = initializeApp({ credential: applicationDefault() });
+    try {
+      const parsed = JSON.parse(rawServiceAccount);
+      adminApp = initializeApp({
+        credential: cert(parsed),
+        projectId: parsed.project_id || process.env.VITE_FIREBASE_PROJECT_ID,
+      });
+      return adminApp;
+    } catch (e) {
+      console.warn('[FIREBASE_ADMIN] Failed to parse FIREBASE_SERVICE_ACCOUNT_JSON:', e);
+    }
+  }
+
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'winora-7cee1';
+  try {
+    adminApp = initializeApp({ credential: applicationDefault(), projectId });
+  } catch (e) {
+    adminApp = initializeApp({ projectId });
   }
   return adminApp;
 }

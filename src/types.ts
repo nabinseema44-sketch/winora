@@ -1,4 +1,37 @@
-export type NavPage = 'home' | 'games' | 'deposit' | 'wallet' | 'profile' | 'login' | 'register' | 'settings' | 'history' | 'agent' | 'master' | 'sql-schema';
+export type NavPage =
+  | 'home'
+  | 'games'
+  | 'wallet'
+  | 'deposit'
+  | 'withdrawal'
+  | 'referral'
+  | 'profile'
+  | 'history'
+  | 'login'
+  | 'register'
+  | 'settings'
+  | 'agent'
+  | 'master'
+  | 'sql-schema';
+
+export const PAISE_PER_RUPEE = 100;
+
+export function formatPaise(paise: number): string {
+  const safePaise = Math.round(Number(paise) || 0);
+  const rupees = safePaise / 100;
+  return `₹${rupees.toLocaleString('en-IN', {
+    minimumFractionDigits: rupees % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+export function rupeesToPaise(rupees: number): number {
+  return Math.round((Number(rupees) || 0) * 100);
+}
+
+export function paiseToRupees(paise: number): number {
+  return (Math.round(Number(paise) || 0)) / 100;
+}
 
 export type UserRole = 'master' | 'agent' | 'user' | 'player';
 
@@ -67,8 +100,11 @@ export interface UserProfile {
   id: string;
   displayName: string;
   phoneNumber: string;
-  walletBalance: number; // Main Wallet demo credit balance
-  mainBalance: number;   // Main Wallet demo credits
+  withdrawableBalancePaise: number; // Integer paise - authoritative withdrawable balance
+  bonusBalancePaise: number;        // Integer paise - non-withdrawable bonus/protection balance
+  agentCommissionBalancePaise?: number; // Integer paise - strictly separated agent commission
+  walletBalance: number; // In rupees for display / compatibility
+  mainBalance: number;   // In rupees for display / compatibility
   currency: CurrencyConfig;
   avatar: string;
   tier: 'Bronze' | 'Silver' | 'Gold' | 'Diamond';
@@ -81,7 +117,7 @@ export interface UserProfile {
   assignedAgentId?: string;
   assignedAgentName?: string;
   assignedAgentPhone?: string;
-  referralCode?: string;         // Unique, stable player referral code (e.g. WIN78ARJ1)
+  referralCode?: string;         // Unique, stable permanent player referral code (e.g. WIN78ARJ1)
   referredByUserId?: string;     // Single established referrer user ID (immutable, max 1)
   referrerId?: string;           // Legacy reference maintained for compatibility
   hasMadeFirstDeposit?: boolean;
@@ -99,20 +135,31 @@ export interface ReferralRecord {
   id: string;                    // Unique referral record ID
   referrerUserId: string;        // Referrer user ID
   referredUserId: string;        // Referred user ID
+  referredUserName?: string;
   referralCode: string;          // Referral code used at registration
   status: ReferralStatus;        // Relationship lifecycle status
   createdAt: string;             // ISO timestamp
   idempotencyKey: string;        // Deduplication key
+  rewardAmountPaise?: number;    // Bonus credits in paise
   rewardAmount?: number;         // Demo credits to Main Wallet when active
   rewardCredited?: boolean;      // Whether reward has been credited
   rewardCreditedAt?: string;     // ISO timestamp when credited
 }
 
-export type WinoraGameId = 'game_x' | 'game_y' | 'game_z' | 'hourly_dhamaka';
+export type WinoraGameId =
+  | 'kalyan_morning'
+  | 'kalyan'
+  | 'kalyan_night'
+  | 'hourly_play'
+  | 'game_x'
+  | 'game_y'
+  | 'game_z'
+  | 'hourly_dhamaka';
 
 export interface SelectionItem {
-  number: string; // '00' to '99'
-  stake: number;
+  number: string; // '0' to '9' (single) or '00' to '99' (two-digit)
+  stake: number;  // in rupees or paise
+  stakePaise?: number;
   color: 'GREEN' | 'RED';
 }
 
@@ -121,12 +168,17 @@ export interface WinoraGameConfig {
   name: string;
   code: string;
   subtitle: string;
-  payoutMultiplier: number; // 90x
-  hasGreenRefund: boolean;  // true for Hourly Dhamaka (80% protection refund)
+  openTime?: string;
+  resultTime?: string;
+  payoutMultiplier: number; // 90x for two-digit
+  singleDigitMultiplier?: number; // 9x for single digit
+  hasHourlyProtection: boolean; // true for Hourly Play (80% protection refund as Bonus Balance)
+  hasGreenRefund?: boolean; // legacy alias
   refundPercentage?: number; // 80%
   description: string;
   accentColor: string;
-  intervalMinutes: number; // e.g. 60 min for hourly
+  intervalMinutes: number;
+  twoDigitOnly?: boolean;
 }
 
 export interface GameRound {
@@ -311,3 +363,148 @@ export interface WithdrawalResponse {
   status: TransactionStatus;
   message: string;
 }
+
+// ----------------------------------------------------------------------
+// WINORA MASTER BLUEPRINT AUTHORITATIVE TYPES
+// ----------------------------------------------------------------------
+
+export type LedgerTransactionType =
+  | 'DEPOSIT_PENDING'
+  | 'DEPOSIT_APPROVED'
+  | 'DEPOSIT_REJECTED'
+  | 'WITHDRAWAL_REQUEST'
+  | 'WITHDRAWAL_APPROVED'
+  | 'WITHDRAWAL_REJECTED'
+  | 'GAME_STAKE'
+  | 'GAME_WIN'
+  | 'HOURLY_PROTECTION'
+  | 'BONUS_REWARD'
+  | 'REFERRAL_REWARD'
+  | 'AGENT_COMMISSION'
+  | 'AGENT_COMMISSION_WITHDRAWAL'
+  | 'MASTER_ADJUSTMENT'
+  | 'REFUND';
+
+export interface ImmutableLedgerEntry {
+  transactionId: string;
+  userId: string;
+  role: 'player' | 'agent' | 'master';
+  transactionType: LedgerTransactionType;
+  amountPaise: number;
+  balanceBeforePaise: number;
+  balanceAfterPaise: number;
+  bonusBeforePaise: number;
+  bonusAfterPaise: number;
+  gameId?: string;
+  roundId?: string;
+  referenceId?: string;
+  actorId: string;
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REJECTED';
+  timestamp: string;
+  ip?: string;
+  device?: string;
+  description: string;
+}
+
+export interface DepositRequestRecord {
+  depositId: string;
+  playerId: string;
+  playerName: string;
+  playerPhone: string;
+  submittedAmountPaise: number;
+  approvedAmountPaise?: number;
+  transactionReference: string; // UTR or Ref number
+  screenshotUrl: string;        // Payment receipt image
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  submittedAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewNote?: string;
+}
+
+export interface WithdrawalRequestRecord {
+  requestId: string;
+  playerId: string;
+  playerName: string;
+  playerPhone?: string;
+  amountPaise: number;
+  upiId: string;
+  accountName: string;
+  status: 'PENDING' | 'PROCESSING' | 'APPROVED' | 'REJECTED';
+  createdAt: string;
+  processedAt?: string;
+  processorId?: string;
+  rejectionReason?: string;
+  agentId?: string;
+  payoutReference?: string;
+}
+
+export interface AgentCommissionRecord {
+  commissionId: string;
+  agentId: string;
+  sourcePlayerId: string;
+  sourcePlayerName: string;
+  amountPaise: number;
+  sourceTransaction: string;
+  status: 'CREDITED' | 'WITHDRAWN';
+  createdAt: string;
+}
+
+export interface MasterPaymentSettings {
+  enabled: boolean;
+  paymentUrl: string;
+  upiId: string;
+  accountHolderName: string;
+  instructions: string;
+  minDepositPaise: number;
+  maxDepositPaise: number;
+  minWithdrawalPaise: number;
+  maxWithdrawalPaise: number;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+export interface AuditLogRecord {
+  auditId: string;
+  actorId: string;
+  role: 'master' | 'agent' | 'system';
+  action: string;
+  targetId: string;
+  oldValue?: string;
+  newValue?: string;
+  timestamp: string;
+  ip?: string;
+  device?: string;
+}
+
+export interface NumberAccountingRow {
+  number: number;
+  formattedNumber: string; // '00' to '99'
+  color: 'GREEN' | 'RED';
+  totalBidPaise: number;
+  playerCount: number;
+  winningStakePaise: number;
+  payoutLiabilityPaise: number;
+  protectionLiabilityPaise: number;
+  netHouseProfitLossPaise: number;
+  isWinning?: boolean;
+}
+
+export interface MasterDashboardStats {
+  totalPlayerBalancesPaise: number;
+  totalBonusBalancesPaise: number;
+  pendingDepositsCount: number;
+  pendingDepositsPaise: number;
+  approvedDepositsCount: number;
+  approvedDepositsPaise: number;
+  pendingWithdrawalsCount: number;
+  pendingWithdrawalsPaise: number;
+  completedWithdrawalsCount: number;
+  completedWithdrawalsPaise: number;
+  agentCommissionsPaise: number;
+  totalGameStakesPaise: number;
+  totalPayoutsPaise: number;
+  totalProtectionPaise: number;
+  houseProfitLossPaise: number;
+}
+

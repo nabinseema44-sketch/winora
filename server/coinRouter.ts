@@ -6,6 +6,8 @@ import {
   transferCoins,
   giftBonusCoins,
   adminAdjustCoins,
+  getPaymentInstruction,
+  updatePaymentInstruction,
   type CoinTransferType,
 } from './virtualCoinService.ts';
 
@@ -36,13 +38,36 @@ coinRouter.post('/transfer', async (req: AuthenticatedRequest, res: Response) =>
     const amount = Number(req.body?.amount);
     const type = String(req.body?.type || '') as CoinTransferType;
     const idempotencyKey = String(req.body?.idempotencyKey || '').trim();
+    const note = typeof req.body?.note === 'string' ? req.body.note : undefined;
     if (!['MASTER_TO_AGENT', 'AGENT_TO_PLAYER', 'PLAYER_TO_AGENT', 'AGENT_TO_MASTER'].includes(type)) {
       res.status(400).json({ success: false, error: 'Unsupported coin transfer type.' }); return;
     }
-    const result = await transferCoins({ actorUid: req.uid!, recipientUid, amount, type, idempotencyKey });
+    const result = await transferCoins({ actorUid: req.uid!, recipientUid, amount, type, note, idempotencyKey });
     res.json({ success: true, transfer: result });
   } catch (error: any) {
     res.status(400).json({ success: false, error: error?.message || 'Coin transfer failed.' });
+  }
+});
+
+coinRouter.get('/payment-instructions', async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    res.json({ success: true, instructions: await getPaymentInstruction() });
+  } catch {
+    res.status(500).json({ success: false, error: 'Unable to load Master instructions.' });
+  }
+});
+
+coinRouter.post('/payment-instructions', requireRole('master'), async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const instructions = await updatePaymentInstruction({
+      actorUid: req.uid!,
+      url: String(req.body?.url || ''),
+      title: req.body?.title,
+      message: req.body?.message,
+    });
+    res.json({ success: true, instructions });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error?.message || 'Unable to update instructions.' });
   }
 });
 

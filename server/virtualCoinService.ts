@@ -2,7 +2,14 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebaseAdmin.ts';
 import type { ServerRole } from './authMiddleware.ts';
 
+export type CoinTransferType =
+  | 'MASTER_TO_AGENT'
+  | 'AGENT_TO_PLAYER'
+  | 'PLAYER_TO_AGENT'
+  | 'AGENT_TO_MASTER';
+
 export type CoinLedgerType =
+  | CoinTransferType
   | 'GAME_STAKE'
   | 'GAME_WIN'
   | 'HOURLY_PROTECTION'
@@ -207,4 +214,105 @@ export async function adminAdjustCoins(params: { actorUid: string; playerUid: st
     ip: params.ip,
     device: params.device,
   });
+}
+
+function allowedTransfer(type: CoinTransferType, fromRole: ServerRole, toRole: ServerRole) {
+  if (type === 'MASTER_TO_AGENT') return fromRole === 'master' && toRole === 'agent';
+  if (type === 'AGENT_TO_PLAYER') return fromRole === 'agent' && toRole === 'player';
+  if (type === 'PLAYER_TO_AGENT') return fromRole === 'player' && toRole === 'agent';
+  if (type === 'AGENT_TO_MASTER') return fromRole === 'agent' && toRole === 'master';
+  return false;
+}
+
+export async function transferCoins(params: {
+  actorUid: string;
+  recipientUid: string;
+  amount: number;
+  type: CoinTransferType;
+  note?: string;
+  idempotencyKey: string;
+}) {
+  const { actorUid, recipientUid, amount, type, note, idempotencyKey } = params;
+  if (!actorUid || !recipientUid || actorUid === recipientUid) throw new Error('Invalid coin transfer participants.');
+  assertAmount(amount);
+  if (!idempotencyKey || idempotencyKey.length < 8 || idempotencyKey.length > 120) {
+    throw new Error('A valid idempotency key is required.');
+  }
+
+  const db = getAdminDb();
+  const ledgerDocument = ledgerRef().doc(`transfer_${idempotencyKey}`);
+
+  return db.runTransaction(async (tx) => {
+    const existing = await tx.get(ledgerDocument);
+    if (existing.exists) {
+      return { id: existing.id, ...(existing.data() as object), duplicate: true };
+    }
+
+    const [fromRole, toRole] = await Promise.all([getRole(actorUid), getRole(recipientUid)]);
+    if (!allowedTransfer(type, fromRole, toRole)) {
+      throw new Error(`Transfer ${type} is not allowed for ${fromRole} → ${toRole}.`);
+    }
+
+    const fromRef = walletRef(actorUid);
+    const toRef = walletRef(recipientUid);
+    const fromSnap = await ensureWallet(tx, actorUid);
+    const toSnap = await ensureWallet(tx, recipientUid);
+
+    if (fromSnap.balance < amount) throw new Error('Insufficient available coins.');
+
+    const newFromBalance = Math.round((fromSnap.balance - amount) * 100) / 100;
+    const newToBalance = Math.round((toSnap.balance + amount) * 100) / 100;
+
+    tx.set(fromRef, { uid: actorUid, balance: newFromBalance, currency: 'COIN', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(toRef, { uid: recipientUid, balance: newToBalance, currency: 'COIN', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.create(ledgerDocument, {
+      type,
+      fromUid: actorUid,
+      toUid: recipientUid,
+      amount,
+      balanceAfterFrom: newFromBalance,
+      balanceAfterTo: newToBalance,
+      note: note?.trim().slice(0, 200) || undefined,
+      idempotencyKey,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    return {
+      id: ledgerDocument.id,
+      type,
+      fromUid: actorUid,
+      toUid: recipientUid,
+      amount,
+      balanceAfterFrom: newFromBalance,
+      balanceAfterTo: newToBalance,
+      duplicate: false,
+    };
+  });
+}
+
+export async function getPaymentInstruction() {
+  const snap = await getAdminDb().collection('system').doc('coinPaymentInstructions').get();
+  return snap.exists
+    ? snap.data()
+    : {
+        enabled: false,
+        url: '',
+        title: 'Coin Deposit Instructions',
+        message: 'Contact your assigned Agent for manual coin transfer instructions.',
+      };
+}
+
+export async function updatePaymentInstruction(params: { actorUid: string; url: string; title?: string; message?: string }) {
+  const role = await getRole(params.actorUid);
+  if (role !== 'master') throw new Error('Only Master can change the coin instruction link.');
+  if (params.url && !/^https:\/\//i.test(params.url)) throw new Error('Instruction link must use HTTPS.');
+  await getAdminDb().collection('system').doc('coinPaymentInstructions').set({
+    enabled: Boolean(params.url),
+    url: params.url.trim(),
+    title: params.title?.trim().slice(0, 80) || 'Coin Deposit Instructions',
+    message: params.message?.trim().slice(0, 500) || 'Contact your assigned Agent for manual coin transfer instructions.',
+    updatedBy: params.actorUid,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return getPaymentInstruction();
 }

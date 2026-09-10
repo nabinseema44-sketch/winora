@@ -13,11 +13,11 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT || 3000);
+  const PORT = 3000;
 
   app.disable('x-powered-by');
-  app.use(express.json({ limit: '256kb' }));
-  app.use(express.urlencoded({ extended: true, limit: '256kb' }));
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // New secure prototype wallet API. Every coin operation requires a Firebase ID token.
   app.use('/api/coin', coinRouter);

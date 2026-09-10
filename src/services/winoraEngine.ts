@@ -1,13 +1,21 @@
 /**
- * WINORA Core Game & Financial Engine
+ * WINORA Core Authoritative Engine (Master Blueprint Compliant)
+ * 
  * Implements:
- * - Role Hierarchy: Master -> Agent -> Player
- * - Single Wallet System: Main Wallet (Demo Credits)
- * - Games: Games X, Y, Z (90x) + Hourly Dhamaka (90x + 80% Protection Refund)
- * - 15-Minute Bidding Freeze Logic
- * - Dual-Confirmation Handshake (Deposit & Withdrawal)
- * - Referral Engine (50% Main / 50% Bonus on 1st Deposit + 10% Agent Commission)
- * - Real-time 00-99 Risk & Payout Calculator with Master P&L
+ * 1. Integer Paise Monetary Model (₹1 = 100 paise)
+ * 2. Strict Wallet Segregation:
+ *    - Withdrawable Balance (withdrawableBalancePaise)
+ *    - Bonus Balance (bonusBalancePaise) - NEVER withdrawable
+ *    - Agent Commission Balance (agentCommissionBalancePaise) - strictly segregated
+ * 3. Immutable Ledger System for all transactions
+ * 4. Master Payment Settings & Manual Deposit Verification (UTR + Screenshot)
+ * 5. Player Withdrawal Engine (atomic balance reservation & approval/rejection refund)
+ * 6. Segregated Agent Commission Accounting & Withdrawal
+ * 7. Permanent Referral System (Anti-manipulation & ledger rewards)
+ * 8. Games: Kalyan Morning, Kalyan, Kalyan Night, Hourly Play (plus aliases)
+ * 9. Payouts: Single digit 9x, Two digit 90x, Hourly 90x + 80% Even/Odd Protection as Bonus Balance
+ * 10. Number-Wise House Profit/Loss & Master Accounting (Every number 00-99)
+ * 11. Master Wallet Dashboard Stats & Privileged Audit Logs
  */
 
 import {
@@ -20,67 +28,102 @@ import {
   ActivityHistoryItem,
   NumberRiskItem,
   UserRole,
+  ImmutableLedgerEntry,
+  DepositRequestRecord,
+  WithdrawalRequestRecord,
+  AgentCommissionRecord,
+  MasterPaymentSettings,
+  AuditLogRecord,
+  NumberAccountingRow,
+  MasterDashboardStats,
+  ReferralRecord,
 } from '../types.ts';
 
+// ---------------------------------------------------------------------------
+// 1. GAME DEFINITIONS (Kalyan Morning, Kalyan, Kalyan Night, Hourly Play)
+// ---------------------------------------------------------------------------
 export const WINORA_GAMES: WinoraGameConfig[] = [
   {
-    id: 'game_x',
-    name: 'Game X',
-    code: 'GX-90',
-    subtitle: 'Standard 00–99 High-Yield Draw',
+    id: 'kalyan_morning',
+    name: 'Kalyan Morning',
+    code: 'KM-90',
+    subtitle: 'Open: 11:40 AM | Result: 12:40 PM',
+    openTime: '11:40 AM',
+    resultTime: '12:40 PM',
     payoutMultiplier: 90,
+    singleDigitMultiplier: 9,
+    hasHourlyProtection: false,
     hasGreenRefund: false,
-    description: 'Select lucky numbers between 00 and 99. Exact match delivers a direct 90× payout to your Main Wallet.',
-    accentColor: 'from-amber-500 to-orange-500',
+    description: 'Premier morning session. Single digit (9×) and Two digit Jodi (90×) with strict 15-min freeze.',
+    accentColor: 'from-amber-500 to-yellow-600',
     intervalMinutes: 60,
   },
   {
-    id: 'game_y',
-    name: 'Game Y',
-    code: 'GY-90',
-    subtitle: 'Afternoon Prime Matrix Draw',
+    id: 'kalyan',
+    name: 'Kalyan',
+    code: 'KL-90',
+    subtitle: 'Open: 4:35 PM | Result: 6:35 PM',
+    openTime: '4:35 PM',
+    resultTime: '6:35 PM',
     payoutMultiplier: 90,
+    singleDigitMultiplier: 9,
+    hasHourlyProtection: false,
     hasGreenRefund: false,
-    description: 'Midday high-roller matrix. Place single or spread bids across 00–99 with a fixed 90× multiplier.',
-    accentColor: 'from-cyan-500 to-blue-500',
-    intervalMinutes: 60,
+    description: 'Flagship afternoon session with deep liquidity. Single digit (9×) and Two digit Jodi (90×).',
+    accentColor: 'from-blue-600 to-indigo-700',
+    intervalMinutes: 120,
   },
   {
-    id: 'game_z',
-    name: 'Game Z',
-    code: 'GZ-90',
-    subtitle: 'Night Royal 90× Draw',
+    id: 'kalyan_night',
+    name: 'Kalyan Night',
+    code: 'KN-90',
+    subtitle: 'Open: 9:40 PM | Result: 11:40 PM',
+    openTime: '9:40 PM',
+    resultTime: '11:40 PM',
     payoutMultiplier: 90,
+    singleDigitMultiplier: 9,
+    hasHourlyProtection: false,
     hasGreenRefund: false,
-    description: 'Evening flagship draw with deep liquidity. Single-number 90× return with instant automated settlement.',
-    accentColor: 'from-purple-500 to-pink-500',
-    intervalMinutes: 60,
+    description: 'Evening high-yield session. Single digit (9×) and Two digit Jodi (90×) with backend settlement.',
+    accentColor: 'from-purple-600 to-pink-600',
+    intervalMinutes: 120,
   },
   {
-    id: 'hourly_dhamaka',
-    name: 'Hourly Dhamaka',
-    code: 'HD-80G',
-    subtitle: '90× Payout + 80% Green Protection Refund',
+    id: 'hourly_play',
+    name: 'Hourly Play',
+    code: 'HP-80P',
+    subtitle: '7:00 AM – 9:00 PM | Hourly Draws + 80% Protection',
+    openTime: '7:00 AM',
+    resultTime: '9:00 PM',
     payoutMultiplier: 90,
+    singleDigitMultiplier: 9,
+    hasHourlyProtection: true,
     hasGreenRefund: true,
     refundPercentage: 80,
-    description: '50 Green Numbers (00–49) & 50 Red Numbers (50–99). If your Green number does not win, receive an automatic 80% refund!',
-    accentColor: 'from-emerald-500 to-teal-500',
+    twoDigitOnly: true,
+    description: 'Two-digit 00-99 draw every hour. 90× winning payout + 80% Protection Refund on Green (Even) / Red (Odd) as Bonus Balance.',
+    accentColor: 'from-emerald-500 to-teal-600',
     intervalMinutes: 60,
   },
 ];
 
-// Helper to check if a number is designated Green (50% green split: 00-49)
+// Helper to determine if a number is designated Green (Even numbers or 00-49)
 export function isNumberGreen(num: number): boolean {
-  return num >= 0 && num <= 49;
+  // In Hourly Play: Even result = GREEN (0, 2, 4...), Odd result = RED (1, 3, 5...)
+  return num % 2 === 0;
 }
 
-// Initial Agent profiles
+// ---------------------------------------------------------------------------
+// 2. INITIAL MOCK PROFILES (Integer Paise: ₹1 = 100 paise)
+// ---------------------------------------------------------------------------
 export const MOCK_AGENTS: UserProfile[] = [
   {
     id: 'agent-vikram',
     displayName: 'Vikram Sharma (Agent)',
     phoneNumber: '+91 98765 11223',
+    withdrawableBalancePaise: 4500000, // ₹45,000
+    bonusBalancePaise: 0,
+    agentCommissionBalancePaise: 750000, // ₹7,500
     walletBalance: 45000,
     mainBalance: 45000,
     currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
@@ -92,17 +135,21 @@ export const MOCK_AGENTS: UserProfile[] = [
     status: 'active',
     address: 'Sector 18, Cyber City, Gurugram',
     pincode: '122002',
+    referralCode: 'AGTVK99',
     stats: {
       gamesPlayed: 0,
       highestVirtualWin: 0,
-      favoriteCategory: 'Hourly Dhamaka',
-      winRate: '98% Agent SLA',
+      favoriteCategory: 'Hourly Play',
+      winRate: '98% SLA',
     },
   },
   {
     id: 'agent-rahul',
     displayName: 'Rahul Verma (Agent)',
     phoneNumber: '+91 98111 22334',
+    withdrawableBalancePaise: 3200000, // ₹32,000
+    bonusBalancePaise: 0,
+    agentCommissionBalancePaise: 420000, // ₹4,200
     walletBalance: 32000,
     mainBalance: 32000,
     currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
@@ -114,20 +161,23 @@ export const MOCK_AGENTS: UserProfile[] = [
     status: 'active',
     address: 'Brigade Road, Bengaluru',
     pincode: '560001',
+    referralCode: 'AGTRH88',
     stats: {
       gamesPlayed: 0,
       highestVirtualWin: 0,
-      favoriteCategory: 'Game X',
-      winRate: '99% Agent SLA',
+      favoriteCategory: 'Kalyan',
+      winRate: '99% SLA',
     },
   },
 ];
 
-// Initial Master profile
 export const MOCK_MASTER: UserProfile = {
   id: 'master-admin',
   displayName: 'WINORA Master SuperAdmin',
   phoneNumber: '+91 90000 00001',
+  withdrawableBalancePaise: 125000000, // ₹1,250,000
+  bonusBalancePaise: 0,
+  agentCommissionBalancePaise: 0,
   walletBalance: 1250000,
   mainBalance: 1250000,
   currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
@@ -137,23 +187,25 @@ export const MOCK_MASTER: UserProfile = {
   level: 99,
   role: 'master',
   status: 'active',
-  address: 'WINORA HQ, High-Tech Core',
+  address: 'WINORA HQ, Cyber Hub',
   pincode: '500081',
+  referralCode: 'WINMASTER',
   stats: {
     gamesPlayed: 0,
     highestVirtualWin: 0,
     favoriteCategory: 'Master Controls',
-    winRate: 'System Authority',
+    winRate: 'Authoritative',
   },
 };
 
-// Initial Player profile
 export const DEFAULT_PLAYER: UserProfile = {
   id: 'player-arjun',
   displayName: 'Arjun Mehta',
   phoneNumber: '+91 98765 43210',
+  withdrawableBalancePaise: 350000, // ₹3,500 Withdrawable
+  bonusBalancePaise: 50000,        // ₹500 Bonus Balance (Non-withdrawable)
   walletBalance: 3500,
-  mainBalance: 3500,
+  mainBalance: 4000,
   currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
   avatar: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
   tier: 'Silver',
@@ -166,12 +218,14 @@ export const DEFAULT_PLAYER: UserProfile = {
   assignedAgentId: 'agent-vikram',
   assignedAgentName: 'Vikram Sharma (Agent)',
   assignedAgentPhone: '+91 98765 11223',
+  referralCode: 'WIN78ARJ1',
+  referredByUserId: 'player-sumit',
   referrerId: 'player-sumit',
   hasMadeFirstDeposit: true,
   stats: {
     gamesPlayed: 34,
     highestVirtualWin: 9000,
-    favoriteCategory: 'Hourly Dhamaka',
+    favoriteCategory: 'Hourly Play',
     winRate: '32%',
   },
 };
@@ -179,9 +233,7 @@ export const DEFAULT_PLAYER: UserProfile = {
 // Helper to create future round times with 15-minute freeze cutoff
 function createRoundTimes(minuteOffset: number) {
   const now = new Date();
-  // Align declare time to next scheduled minuteOffset
   const declare = new Date(now.getTime() + minuteOffset * 60 * 1000);
-  // Freeze time is strictly 15 minutes before declare time
   const freeze = new Date(declare.getTime() - 15 * 60 * 1000);
   return {
     declareTime: declare.toISOString(),
@@ -189,69 +241,107 @@ function createRoundTimes(minuteOffset: number) {
   };
 }
 
-// Initial active rounds for each of the 4 games
 export function generateInitialRounds(): Record<WinoraGameId, GameRound> {
-  const tX = createRoundTimes(28); // 28 mins left -> freeze in 13 mins
-  const tY = createRoundTimes(45); // 45 mins left -> freeze in 30 mins
-  const tZ = createRoundTimes(14); // 14 mins left -> ALREADY FROZEN (< 15 mins)
-  const tD = createRoundTimes(35); // 35 mins left -> freeze in 20 mins
+  const tM = createRoundTimes(28); // 28 mins left -> freeze in 13 mins
+  const tK = createRoundTimes(45); // 45 mins left -> freeze in 30 mins
+  const tN = createRoundTimes(14); // 14 mins left -> ALREADY FROZEN (< 15 mins)
+  const tH = createRoundTimes(35); // 35 mins left -> freeze in 20 mins
 
   return {
-    game_x: {
-      id: 'round-gx-101',
-      gameId: 'game_x',
-      gameName: 'Game X (90×)',
+    kalyan_morning: {
+      id: 'round-km-101',
+      gameId: 'kalyan_morning',
+      gameName: 'Kalyan Morning (90×)',
       roundNumber: 101,
-      freezeTime: tX.freezeTime,
-      declareTime: tX.declareTime,
+      freezeTime: tM.freezeTime,
+      declareTime: tM.declareTime,
+      status: 'open',
+      totalBidsPool: 24500,
+    },
+    kalyan: {
+      id: 'round-kl-204',
+      gameId: 'kalyan',
+      gameName: 'Kalyan (90×)',
+      roundNumber: 204,
+      freezeTime: tK.freezeTime,
+      declareTime: tK.declareTime,
+      status: 'open',
+      totalBidsPool: 18200,
+    },
+    kalyan_night: {
+      id: 'round-kn-309',
+      gameId: 'kalyan_night',
+      gameName: 'Kalyan Night (90×)',
+      roundNumber: 309,
+      freezeTime: tN.freezeTime,
+      declareTime: tN.declareTime,
+      status: 'frozen',
+      totalBidsPool: 41200,
+    },
+    hourly_play: {
+      id: 'round-hp-412',
+      gameId: 'hourly_play',
+      gameName: 'Hourly Play (90× + 80% Protection)',
+      roundNumber: 412,
+      freezeTime: tH.freezeTime,
+      declareTime: tH.declareTime,
+      status: 'open',
+      totalBidsPool: 56800,
+    },
+    // Aliases for backwards compatibility with earlier components
+    game_x: {
+      id: 'round-km-101',
+      gameId: 'game_x',
+      gameName: 'Kalyan Morning',
+      roundNumber: 101,
+      freezeTime: tM.freezeTime,
+      declareTime: tM.declareTime,
       status: 'open',
       totalBidsPool: 24500,
     },
     game_y: {
-      id: 'round-gy-204',
+      id: 'round-kl-204',
       gameId: 'game_y',
-      gameName: 'Game Y (90×)',
+      gameName: 'Kalyan',
       roundNumber: 204,
-      freezeTime: tY.freezeTime,
-      declareTime: tY.declareTime,
+      freezeTime: tK.freezeTime,
+      declareTime: tK.declareTime,
       status: 'open',
       totalBidsPool: 18200,
     },
     game_z: {
-      id: 'round-gz-309',
+      id: 'round-kn-309',
       gameId: 'game_z',
-      gameName: 'Game Z (90×)',
+      gameName: 'Kalyan Night',
       roundNumber: 309,
-      freezeTime: tZ.freezeTime,
-      declareTime: tZ.declareTime,
-      status: 'frozen', // Frozen because < 15 mins remaining
+      freezeTime: tN.freezeTime,
+      declareTime: tN.declareTime,
+      status: 'frozen',
       totalBidsPool: 41200,
     },
     hourly_dhamaka: {
-      id: 'round-hd-412',
+      id: 'round-hp-412',
       gameId: 'hourly_dhamaka',
-      gameName: 'Hourly Dhamaka (90× + 80% Green Refund)',
+      gameName: 'Hourly Play',
       roundNumber: 412,
-      freezeTime: tD.freezeTime,
-      declareTime: tD.declareTime,
+      freezeTime: tH.freezeTime,
+      declareTime: tH.declareTime,
       status: 'open',
       totalBidsPool: 56800,
     },
   };
 }
 
-// Seed mock bids across 00-99 to make the 00-99 Risk & Payout Calculator immediately live & interesting
 function generateSeedBids(): BidRecord[] {
   const bids: BidRecord[] = [];
   const numbers = [7, 14, 21, 33, 42, 55, 68, 77, 88, 93, 0, 99, 25, 49, 50, 72];
-  
-  // Game X bids
+
   numbers.forEach((num, idx) => {
     bids.push({
-      id: `bid-gx-${idx}`,
-      gameId: 'game_x',
-      gameName: 'Game X',
-      roundId: 'round-gx-101',
+      id: `bid-km-${idx}`,
+      gameId: 'kalyan_morning',
+      gameName: 'Kalyan Morning',
+      roundId: 'round-km-101',
       userId: idx % 2 === 0 ? 'player-arjun' : 'player-user2',
       userName: idx % 2 === 0 ? 'Arjun Mehta' : 'Rohan Patel',
       number: num,
@@ -265,13 +355,12 @@ function generateSeedBids(): BidRecord[] {
     });
   });
 
-  // Hourly Dhamaka bids
   numbers.forEach((num, idx) => {
     bids.push({
-      id: `bid-hd-${idx}`,
-      gameId: 'hourly_dhamaka',
-      gameName: 'Hourly Dhamaka',
-      roundId: 'round-hd-412',
+      id: `bid-hp-${idx}`,
+      gameId: 'hourly_play',
+      gameName: 'Hourly Play',
+      roundId: 'round-hp-412',
       userId: idx % 2 === 0 ? 'player-arjun' : 'player-user3',
       userName: idx % 2 === 0 ? 'Arjun Mehta' : 'Karan Singh',
       number: num,
@@ -288,7 +377,7 @@ function generateSeedBids(): BidRecord[] {
   return bids;
 }
 
-// Initial Handshake Transactions (Dual-confirmation: Player -> Agent)
+// Initial Handshake Transactions (dual confirmation)
 export const INITIAL_HANDSHAKES: HandshakeTransaction[] = [
   {
     id: 'tx-hs-101',
@@ -303,7 +392,7 @@ export const INITIAL_HANDSHAKES: HandshakeTransaction[] = [
     status: 'pending',
     createdAt: new Date(Date.now() - 15 * 60000).toISOString(),
     isFirstDeposit: false,
-    notes: 'UPI Transfer ref: UPI-84920482029 to Agent Vikram QR',
+    notes: 'UPI Transfer UTR: 489201928312 to Agent Vikram QR',
   },
   {
     id: 'tx-hs-102',
@@ -317,81 +406,253 @@ export const INITIAL_HANDSHAKES: HandshakeTransaction[] = [
     type: 'deposit',
     status: 'pending',
     createdAt: new Date(Date.now() - 40 * 60000).toISOString(),
-    isFirstDeposit: true, // Will trigger referral bonus + 10% agent commission!
-    notes: 'First-time deposit via GPay ref: GP-392019482',
-  },
-  {
-    id: 'tx-hs-103',
-    senderId: 'player-arjun',
-    senderName: 'Arjun Mehta',
-    senderPhone: '+91 98765 43210',
-    receiverId: 'agent-vikram',
-    agentName: 'Vikram Sharma (Agent)',
-    agentPhone: '+91 98765 11223',
-    amount: 1000,
-    type: 'withdrawal',
-    status: 'completed',
-    createdAt: new Date(Date.now() - 2 * 3600000).toISOString(),
-    completedAt: new Date(Date.now() - 1 * 3600000).toISOString(),
-    notes: 'Withdrawn to UPI: arjun@okaxis (Handshake confirmed by Vikram)',
-    payoutDetails: {
-      upiId: 'arjun@okaxis',
-    },
+    isFirstDeposit: true,
+    notes: 'PhonePe screenshot verified. First deposit.',
   },
 ];
 
-// Initial 30-Day Activity History
 export const INITIAL_HISTORY: ActivityHistoryItem[] = [
   {
     id: 'act-1',
     type: 'referral',
-    title: 'Referral Reward (Main Wallet)',
+    title: 'Referral Bonus Credited',
     amount: 500,
     wallet: 'main',
     status: 'completed',
     timestamp: new Date(Date.now() - 24 * 3600000).toISOString(),
-    details: 'Received ₹500 Main Wallet credit from Sumit first qualifying deposit.',
+    details: 'Received ₹500 referral reward from Sumit first qualifying deposit.',
     referenceId: 'REF-78491',
   },
   {
     id: 'act-2',
     type: 'win',
-    title: 'Game X - 90× Winning Payout!',
+    title: 'Kalyan Morning - 90× Winning Payout!',
     amount: 9000,
     wallet: 'main',
     status: 'won',
     timestamp: new Date(Date.now() - 48 * 3600000).toISOString(),
-    details: 'Lucky #42 drawn! Bet ₹100 × 90 = ₹9,000 credited to Main Wallet.',
-    gameName: 'Game X',
+    details: 'Lucky #42 drawn! Bet ₹100 × 90 = ₹9,000 credited to Withdrawable Balance.',
+    gameName: 'Kalyan Morning',
     referenceId: 'WIN-90X-42',
   },
   {
     id: 'act-3',
     type: 'refund',
-    title: 'Hourly Dhamaka 80% Green Protection Refund',
+    title: 'Hourly Play 80% Protection Refund',
     amount: 240,
     wallet: 'main',
     status: 'refunded',
     timestamp: new Date(Date.now() - 3 * 3600000).toISOString(),
-    details: 'Bet ₹300 on Green #24. Round settled on #68. 80% refund (₹240) credited to Main Wallet.',
-    gameName: 'Hourly Dhamaka',
+    details: 'Bet ₹300 on Green #24. Round settled on #68 (Even = Green). 80% refund (₹240) credited to Bonus Balance.',
+    gameName: 'Hourly Play',
     referenceId: 'REFUND-GRN-24',
   },
   {
     id: 'act-4',
     type: 'deposit',
-    title: 'Agent Dual-Confirmation Deposit',
+    title: 'Manual Deposit Approved by Master',
     amount: 2500,
     wallet: 'main',
     status: 'completed',
     timestamp: new Date(Date.now() - 72 * 3600000).toISOString(),
-    details: 'Handshake completed by Agent Vikram Sharma. Main balance credited.',
-    referenceId: 'DEP-HS-2500',
+    details: 'UTR #392819283120 verified by Master. ₹2,500 credited to Withdrawable Balance.',
+    referenceId: 'DEP-UTR-39281',
+  },
+];
+
+// Seed initial ledger entries for full immutability audit
+export const INITIAL_LEDGER: ImmutableLedgerEntry[] = [
+  {
+    transactionId: 'LEDGER-TX-1001',
+    userId: 'player-arjun',
+    role: 'player',
+    transactionType: 'DEPOSIT_APPROVED',
+    amountPaise: 250000,
+    balanceBeforePaise: 100000,
+    balanceAfterPaise: 350000,
+    bonusBeforePaise: 50000,
+    bonusAfterPaise: 50000,
+    referenceId: 'DEP-UTR-39281',
+    actorId: 'master-admin',
+    status: 'COMPLETED',
+    timestamp: new Date(Date.now() - 72 * 3600000).toISOString(),
+    description: 'Manual deposit approved by Master SuperAdmin against UTR #392819283120.',
+  },
+  {
+    transactionId: 'LEDGER-TX-1002',
+    userId: 'player-arjun',
+    role: 'player',
+    transactionType: 'GAME_WIN',
+    amountPaise: 900000,
+    balanceBeforePaise: 250000,
+    balanceAfterPaise: 1150000,
+    bonusBeforePaise: 50000,
+    bonusAfterPaise: 50000,
+    gameId: 'kalyan_morning',
+    roundId: 'round-km-99',
+    actorId: 'system',
+    status: 'COMPLETED',
+    timestamp: new Date(Date.now() - 48 * 3600000).toISOString(),
+    description: '90× Winning payout on Number #42 for Kalyan Morning.',
+  },
+  {
+    transactionId: 'LEDGER-TX-1003',
+    userId: 'player-arjun',
+    role: 'player',
+    transactionType: 'HOURLY_PROTECTION',
+    amountPaise: 24000,
+    balanceBeforePaise: 350000,
+    balanceAfterPaise: 350000,
+    bonusBeforePaise: 26000,
+    bonusAfterPaise: 50000,
+    gameId: 'hourly_play',
+    roundId: 'round-hp-408',
+    actorId: 'system',
+    status: 'COMPLETED',
+    timestamp: new Date(Date.now() - 3 * 3600000).toISOString(),
+    description: '80% Hourly Protection Refund on Green Number #24 credited to non-withdrawable Bonus Balance.',
+  },
+];
+
+export const INITIAL_DEPOSIT_REQUESTS: DepositRequestRecord[] = [
+  {
+    depositId: 'DEP-REQ-801',
+    playerId: 'player-arjun',
+    playerName: 'Arjun Mehta',
+    playerPhone: '+91 98765 43210',
+    submittedAmountPaise: 200000, // ₹2,000
+    transactionReference: 'UPI-489201928312',
+    screenshotUrl: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&auto=format&fit=crop&q=80',
+    status: 'PENDING',
+    submittedAt: new Date(Date.now() - 25 * 60000).toISOString(),
+    reviewNote: 'Awaiting Master verification of ICICI UPI transfer.',
+  },
+  {
+    depositId: 'DEP-REQ-802',
+    playerId: 'player-sneha',
+    playerName: 'Sneha Roy',
+    playerPhone: '+91 98222 33445',
+    submittedAmountPaise: 150000, // ₹1,500
+    transactionReference: 'PAYTM-99201828112',
+    screenshotUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=400&auto=format&fit=crop&q=80',
+    status: 'PENDING',
+    submittedAt: new Date(Date.now() - 50 * 60000).toISOString(),
+    reviewNote: 'PayTM QR transfer submitted by player.',
+  },
+  {
+    depositId: 'DEP-REQ-799',
+    playerId: 'player-arjun',
+    playerName: 'Arjun Mehta',
+    playerPhone: '+91 98765 43210',
+    submittedAmountPaise: 250000,
+    approvedAmountPaise: 250000,
+    transactionReference: 'UTR-392819283120',
+    screenshotUrl: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=400&auto=format&fit=crop&q=80',
+    status: 'APPROVED',
+    submittedAt: new Date(Date.now() - 74 * 3600000).toISOString(),
+    reviewedAt: new Date(Date.now() - 72 * 3600000).toISOString(),
+    reviewedBy: 'master-admin',
+    reviewNote: 'Verified with ICICI current account statement.',
+  },
+];
+
+export const INITIAL_WITHDRAWAL_REQUESTS: WithdrawalRequestRecord[] = [
+  {
+    requestId: 'WTH-REQ-501',
+    playerId: 'player-arjun',
+    playerName: 'Arjun Mehta',
+    playerPhone: '+91 98765 43210',
+    amountPaise: 100000, // ₹1,000
+    upiId: 'arjun.mehta@oksbi',
+    accountName: 'Arjun Mehta',
+    status: 'PENDING',
+    createdAt: new Date(Date.now() - 45 * 60000).toISOString(),
+  },
+  {
+    requestId: 'WTH-REQ-498',
+    playerId: 'player-sumit',
+    playerName: 'Sumit Joshi',
+    playerPhone: '+91 98333 44556',
+    amountPaise: 250000, // ₹2,500
+    upiId: 'sumit.joshi@icici',
+    accountName: 'Sumit Joshi',
+    status: 'APPROVED',
+    createdAt: new Date(Date.now() - 5 * 3600000).toISOString(),
+    processedAt: new Date(Date.now() - 4 * 3600000).toISOString(),
+    processorId: 'master-admin',
+    payoutReference: 'IMPS-930281029381',
+  },
+];
+
+export const INITIAL_MASTER_PAYMENT_SETTINGS: MasterPaymentSettings = {
+  enabled: true,
+  paymentUrl: 'https://pay.winora.vip/instant-upi',
+  upiId: 'winora.gaming@icici',
+  accountHolderName: 'WINORA ENTERTAINMENT PVT LTD',
+  instructions:
+    '1. Scan the official UPI QR code or pay to the UPI ID.\n2. Note the 12-digit UTR/Reference number from your banking app.\n3. Enter the exact deposited amount and transaction reference.\n4. Upload the payment receipt screenshot.\n5. Master will verify and credit your Withdrawable Balance promptly.',
+  minDepositPaise: 10000, // ₹100
+  maxDepositPaise: 5000000, // ₹50,000
+  minWithdrawalPaise: 50000, // ₹500
+  maxWithdrawalPaise: 10000000, // ₹100,000
+  updatedBy: 'master-admin',
+  updatedAt: new Date().toISOString(),
+};
+
+export const INITIAL_AUDIT_LOGS: AuditLogRecord[] = [
+  {
+    auditId: 'AUDIT-101',
+    actorId: 'master-admin',
+    role: 'master',
+    action: 'MASTER_UPDATED_PAYMENT_SETTINGS',
+    targetId: 'payment-settings',
+    oldValue: 'UPI: winora@hdfc',
+    newValue: 'UPI: winora.gaming@icici',
+    timestamp: new Date(Date.now() - 36 * 3600000).toISOString(),
+    device: 'Master Web Console',
+  },
+  {
+    auditId: 'AUDIT-102',
+    actorId: 'master-admin',
+    role: 'master',
+    action: 'DEPOSIT_APPROVED',
+    targetId: 'DEP-REQ-799',
+    newValue: 'Approved ₹2,500 credit to player-arjun with UTR UTR-392819283120',
+    timestamp: new Date(Date.now() - 72 * 3600000).toISOString(),
+    device: 'Master Web Console',
+  },
+];
+
+export const INITIAL_REFERRALS: ReferralRecord[] = [
+  {
+    id: 'ref-rec-01',
+    referrerUserId: 'player-arjun',
+    referredUserId: 'player-sumit',
+    referredUserName: 'Sumit Joshi',
+    referralCode: 'WIN78ARJ1',
+    status: 'COMPLETED',
+    createdAt: new Date(Date.now() - 10 * 86400000).toISOString(),
+    idempotencyKey: 'IDEM-REF-ARJUN-SUMIT',
+    rewardAmountPaise: 50000, // ₹500
+    rewardCredited: true,
+    rewardCreditedAt: new Date(Date.now() - 9 * 86400000).toISOString(),
+  },
+  {
+    id: 'ref-rec-02',
+    referrerUserId: 'player-arjun',
+    referredUserId: 'player-sneha',
+    referredUserName: 'Sneha Roy',
+    referralCode: 'WIN78ARJ1',
+    status: 'REGISTERED',
+    createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+    idempotencyKey: 'IDEM-REF-ARJUN-SNEHA',
+    rewardAmountPaise: 50000,
+    rewardCredited: false,
   },
 ];
 
 /**
- * In-Memory State Manager with Event Subscribers
+ * Authoritative WinoraStateManager Class
  */
 class WinoraStateManager {
   private activeRole: UserRole = 'user';
@@ -404,8 +665,10 @@ class WinoraStateManager {
       id: 'player-sneha',
       displayName: 'Sneha Roy',
       phoneNumber: '+91 98222 33445',
+      withdrawableBalancePaise: 150000, // ₹1,500
+      bonusBalancePaise: 10000,        // ₹100
       walletBalance: 1500,
-      mainBalance: 1500,
+      mainBalance: 1600,
       currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
       avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
       tier: 'Bronze',
@@ -417,15 +680,19 @@ class WinoraStateManager {
       pincode: '700016',
       assignedAgentId: 'agent-vikram',
       assignedAgentName: 'Vikram Sharma (Agent)',
+      referralCode: 'WINSNEHA9',
+      referredByUserId: 'player-arjun',
       hasMadeFirstDeposit: false,
-      stats: { gamesPlayed: 5, highestVirtualWin: 900, favoriteCategory: 'Game X', winRate: '20%' },
+      stats: { gamesPlayed: 5, highestVirtualWin: 900, favoriteCategory: 'Kalyan Morning', winRate: '20%' },
     },
     {
       id: 'player-sumit',
       displayName: 'Sumit Joshi',
       phoneNumber: '+91 98333 44556',
+      withdrawableBalancePaise: 820000, // ₹8,200
+      bonusBalancePaise: 80000,        // ₹800
       walletBalance: 8200,
-      mainBalance: 8200,
+      mainBalance: 9000,
       currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
       avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
       tier: 'Gold',
@@ -437,8 +704,9 @@ class WinoraStateManager {
       pincode: '302006',
       assignedAgentId: 'agent-rahul',
       assignedAgentName: 'Rahul Verma (Agent)',
+      referralCode: 'WINSUMIT6',
       hasMadeFirstDeposit: true,
-      stats: { gamesPlayed: 58, highestVirtualWin: 18000, favoriteCategory: 'Hourly Dhamaka', winRate: '41%' },
+      stats: { gamesPlayed: 58, highestVirtualWin: 18000, favoriteCategory: 'Hourly Play', winRate: '41%' },
     },
   ];
 
@@ -446,10 +714,39 @@ class WinoraStateManager {
   private bids: BidRecord[] = generateSeedBids();
   private handshakes: HandshakeTransaction[] = [...INITIAL_HANDSHAKES];
   private history: ActivityHistoryItem[] = [...INITIAL_HISTORY];
+  private ledger: ImmutableLedgerEntry[] = [...INITIAL_LEDGER];
+  private depositRequests: DepositRequestRecord[] = [...INITIAL_DEPOSIT_REQUESTS];
+  private withdrawalRequests: WithdrawalRequestRecord[] = [...INITIAL_WITHDRAWAL_REQUESTS];
+  private masterPaymentSettings: MasterPaymentSettings = { ...INITIAL_MASTER_PAYMENT_SETTINGS };
+  private auditLogs: AuditLogRecord[] = [...INITIAL_AUDIT_LOGS];
+  private referrals: ReferralRecord[] = [...INITIAL_REFERRALS];
+  private agentCommissions: AgentCommissionRecord[] = [
+    {
+      commissionId: 'COMM-101',
+      agentId: 'agent-vikram',
+      sourcePlayerId: 'player-arjun',
+      sourcePlayerName: 'Arjun Mehta',
+      amountPaise: 25000, // ₹250 (10% of ₹2,500 deposit)
+      sourceTransaction: 'DEP-REQ-799',
+      status: 'CREDITED',
+      createdAt: new Date(Date.now() - 72 * 3600000).toISOString(),
+    },
+    {
+      commissionId: 'COMM-102',
+      agentId: 'agent-vikram',
+      sourcePlayerId: 'player-sumit',
+      sourcePlayerName: 'Sumit Joshi',
+      amountPaise: 50000, // ₹500
+      sourceTransaction: 'DEP-REQ-782',
+      status: 'CREDITED',
+      createdAt: new Date(Date.now() - 48 * 3600000).toISOString(),
+    },
+  ];
+
   private listeners: (() => void)[] = [];
 
   constructor() {
-    // Start live round tick every 5 seconds to update freeze status
+    // Tick round timers every 5 seconds to enforce the 15-minute freeze rule
     setInterval(() => {
       this.tickRoundTimers();
     }, 5000);
@@ -466,14 +763,14 @@ class WinoraStateManager {
     this.listeners.forEach((fn) => fn());
   }
 
-  // Periodic timer to maintain 15-minute freeze rule
+  // Periodic check for 15-minute freeze rule
   private tickRoundTimers() {
     const now = Date.now();
     let updated = false;
 
     (Object.keys(this.rounds) as WinoraGameId[]).forEach((gid) => {
       const round = this.rounds[gid];
-      if (round.status === 'open') {
+      if (round && round.status === 'open') {
         const freezeTimestamp = new Date(round.freezeTime).getTime();
         if (now >= freezeTimestamp) {
           round.status = 'frozen';
@@ -487,7 +784,9 @@ class WinoraStateManager {
     }
   }
 
-  // Role Switching (seamless testing between Master, Agent, and Player)
+  // ---------------------------------------------------------------------------
+  // ROLE SWITCHING (Seamless instant testing for Master, Agent, and Player)
+  // ---------------------------------------------------------------------------
   public getRole(): UserRole {
     return this.activeRole;
   }
@@ -509,59 +808,12 @@ class WinoraStateManager {
     this.setRole(targetRole);
   }
 
-  public registerPlayer(params: {
-    displayName: string;
-    phoneNumber: string;
-    address: string;
-    pincode: string;
-    referralCode?: string;
-    assignedAgentId?: string;
-    avatar?: string;
-  }): UserProfile {
-    const newId = `user-${Date.now().toString().slice(-6)}`;
-    const newPlayer: UserProfile = {
-      id: newId,
-      displayName: params.displayName,
-      phoneNumber: params.phoneNumber,
-      walletBalance: 1000,
-      mainBalance: 1000,
-      currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
-      avatar: params.avatar || 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
-      tier: 'Bronze',
-      joinedDate: 'Just now',
-      level: 1,
-      role: 'user',
-      status: 'active',
-      address: params.address,
-      pincode: params.pincode,
-      assignedAgentId: params.assignedAgentId || this.agents[0].id,
-      assignedAgentName: this.agents[0].displayName,
-      referrerId: params.referralCode ? 'user-rahul' : undefined,
-      hasMadeFirstDeposit: false,
-      stats: { gamesPlayed: 0, highestVirtualWin: 0, favoriteCategory: 'Hourly Dhamaka', winRate: '0%' },
-    };
-
-    this.players.unshift(newPlayer);
-    this.currentUser = newPlayer;
-    this.activeRole = 'user';
-    this.notify();
-    return newPlayer;
-  }
-
   public getCurrentUser(): UserProfile {
     return this.currentUser;
   }
 
-  public updateCurrentUser(updater: Partial<UserProfile>) {
-    this.currentUser = { ...this.currentUser, ...updater };
-    if (this.currentUser.role === 'user') {
-      this.players = this.players.map((p) => (p.id === this.currentUser.id ? this.currentUser : p));
-    } else if (this.currentUser.role === 'agent') {
-      this.agents = this.agents.map((a) => (a.id === this.currentUser.id ? this.currentUser : a));
-    } else if (this.currentUser.role === 'master') {
-      this.masterProfile = this.currentUser;
-    }
-    this.notify();
+  public getMasterProfile(): UserProfile {
+    return this.masterProfile;
   }
 
   public getAgents(): UserProfile[] {
@@ -588,21 +840,645 @@ class WinoraStateManager {
     return this.history;
   }
 
+  public getLedger(): ImmutableLedgerEntry[] {
+    return [...this.ledger].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }
+
+  public getDepositRequests(): DepositRequestRecord[] {
+    return [...this.depositRequests].sort(
+      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    );
+  }
+
+  public getWithdrawalRequests(): WithdrawalRequestRecord[] {
+    return [...this.withdrawalRequests].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
+  public getMasterPaymentSettings(): MasterPaymentSettings {
+    return this.masterPaymentSettings;
+  }
+
+  public getAuditLogs(): AuditLogRecord[] {
+    return [...this.auditLogs].sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }
+
+  public getReferrals(userId?: string): ReferralRecord[] {
+    if (!userId) return this.referrals;
+    return this.referrals.filter(
+      (r) => r.referrerUserId === userId || r.referredUserId === userId
+    );
+  }
+
+  public getAgentCommissions(agentId?: string): AgentCommissionRecord[] {
+    if (!agentId) return this.agentCommissions;
+    return this.agentCommissions.filter((c) => c.agentId === agentId);
+  }
+
   // ---------------------------------------------------------------------------
-  // BIDDING & FREEZE ENGINE
-  // Single Main Wallet Model
-  // Timing Rule: Bidding strictly freezes 15 minutes prior to result declaration
+  // IMMUTABLE LEDGER RECORDING
+  // ---------------------------------------------------------------------------
+  public recordLedgerEntry(
+    entry: Omit<ImmutableLedgerEntry, 'transactionId' | 'timestamp'>
+  ): ImmutableLedgerEntry {
+    const newEntry: ImmutableLedgerEntry = {
+      ...entry,
+      transactionId: `LEDGER-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+      timestamp: new Date().toISOString(),
+    };
+    this.ledger.unshift(newEntry);
+    return newEntry;
+  }
+
+  // ---------------------------------------------------------------------------
+  // AUDIT LOG RECORDING
+  // ---------------------------------------------------------------------------
+  public recordAuditLog(log: Omit<AuditLogRecord, 'auditId' | 'timestamp'>) {
+    const record: AuditLogRecord = {
+      ...log,
+      auditId: `AUDIT-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+      timestamp: new Date().toISOString(),
+    };
+    this.auditLogs.unshift(record);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. DEPOSIT SYSTEM (Master Controls Payment Link & Manual Verification)
+  // ---------------------------------------------------------------------------
+  public updateMasterPaymentSettings(
+    settings: Partial<MasterPaymentSettings>,
+    actorId: string = 'master-admin'
+  ): { success: boolean; message: string } {
+    const oldSettings = JSON.stringify(this.masterPaymentSettings);
+    this.masterPaymentSettings = {
+      ...this.masterPaymentSettings,
+      ...settings,
+      updatedBy: actorId,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.recordAuditLog({
+      actorId,
+      role: 'master',
+      action: 'MASTER_CHANGED_PAYMENT_SETTINGS',
+      targetId: 'payment-settings',
+      oldValue: oldSettings,
+      newValue: JSON.stringify(this.masterPaymentSettings),
+      device: 'Master Console',
+    });
+
+    this.notify();
+    return { success: true, message: 'Master payment configuration updated successfully.' };
+  }
+
+  public submitDepositRequest(params: {
+    playerId: string;
+    amountPaise: number;
+    transactionReference: string;
+    screenshotUrl: string;
+  }): { success: boolean; message: string; deposit?: DepositRequestRecord } {
+    const player = this.players.find((p) => p.id === params.playerId) || this.currentUser;
+
+    // Check duplicate transaction reference
+    const duplicate = this.depositRequests.find(
+      (d) => d.transactionReference.trim().toUpperCase() === params.transactionReference.trim().toUpperCase()
+    );
+    if (duplicate) {
+      return {
+        success: false,
+        message: 'This transaction reference / UTR has already been submitted. Please check your reference number.',
+      };
+    }
+
+    if (params.amountPaise < this.masterPaymentSettings.minDepositPaise) {
+      return {
+        success: false,
+        message: `Minimum deposit amount is ₹${(this.masterPaymentSettings.minDepositPaise / 100).toLocaleString()}.`,
+      };
+    }
+
+    const newDeposit: DepositRequestRecord = {
+      depositId: `DEP-REQ-${Date.now().toString().slice(-6)}`,
+      playerId: player.id,
+      playerName: player.displayName,
+      playerPhone: player.phoneNumber,
+      submittedAmountPaise: params.amountPaise,
+      transactionReference: params.transactionReference.trim(),
+      screenshotUrl: params.screenshotUrl,
+      status: 'PENDING',
+      submittedAt: new Date().toISOString(),
+      reviewNote: 'Awaiting Master approval.',
+    };
+
+    this.depositRequests.unshift(newDeposit);
+
+    // Record Pending in ledger
+    this.recordLedgerEntry({
+      userId: player.id,
+      role: 'player',
+      transactionType: 'DEPOSIT_PENDING',
+      amountPaise: params.amountPaise,
+      balanceBeforePaise: player.withdrawableBalancePaise,
+      balanceAfterPaise: player.withdrawableBalancePaise,
+      bonusBeforePaise: player.bonusBalancePaise,
+      bonusAfterPaise: player.bonusBalancePaise,
+      referenceId: newDeposit.depositId,
+      actorId: player.id,
+      status: 'PENDING',
+      description: `Player submitted manual deposit request for ₹${(params.amountPaise / 100).toLocaleString()} (Ref: ${params.transactionReference}).`,
+    });
+
+    this.notify();
+    return {
+      success: true,
+      message: 'Deposit submitted! Master will verify your payment and credit your Withdrawable Balance.',
+      deposit: newDeposit,
+    };
+  }
+
+  public approveDepositRequest(
+    depositId: string,
+    masterId: string = 'master-admin',
+    reviewNote?: string
+  ): { success: boolean; message: string } {
+    const dep = this.depositRequests.find((d) => d.depositId === depositId);
+    if (!dep) return { success: false, message: 'Deposit request not found.' };
+    if (dep.status !== 'PENDING') return { success: false, message: 'Deposit already reviewed.' };
+
+    const player = this.players.find((p) => p.id === dep.playerId) || this.currentUser;
+    const balanceBefore = player.withdrawableBalancePaise;
+
+    // Atomically credit withdrawable balance
+    player.withdrawableBalancePaise += dep.submittedAmountPaise;
+    player.walletBalance = Math.floor(player.withdrawableBalancePaise / 100);
+    player.mainBalance = Math.floor((player.withdrawableBalancePaise + player.bonusBalancePaise) / 100);
+    dep.status = 'APPROVED';
+    dep.approvedAmountPaise = dep.submittedAmountPaise;
+    dep.reviewedAt = new Date().toISOString();
+    dep.reviewedBy = masterId;
+    dep.reviewNote = reviewNote || 'Approved by Master verification.';
+
+    // Create Immutable Ledger Entry
+    this.recordLedgerEntry({
+      userId: player.id,
+      role: 'player',
+      transactionType: 'DEPOSIT_APPROVED',
+      amountPaise: dep.submittedAmountPaise,
+      balanceBeforePaise: balanceBefore,
+      balanceAfterPaise: player.withdrawableBalancePaise,
+      bonusBeforePaise: player.bonusBalancePaise,
+      bonusAfterPaise: player.bonusBalancePaise,
+      referenceId: dep.depositId,
+      actorId: masterId,
+      status: 'COMPLETED',
+      description: `Master approved deposit of ₹${(dep.submittedAmountPaise / 100).toLocaleString()} against UTR: ${dep.transactionReference}.`,
+    });
+
+    // Record Audit Log
+    this.recordAuditLog({
+      actorId: masterId,
+      role: 'master',
+      action: 'MASTER_APPROVED_DEPOSIT',
+      targetId: dep.depositId,
+      newValue: `Credited ₹${(dep.submittedAmountPaise / 100).toLocaleString()} to ${player.displayName}`,
+      device: 'Master Console',
+    });
+
+    // Agent Commission Trigger: If player is assigned to an agent, calculate commission (e.g. 10%)
+    if (player.assignedAgentId) {
+      const agent = this.agents.find((a) => a.id === player.assignedAgentId);
+      if (agent) {
+        const commPaise = Math.round(dep.submittedAmountPaise * 0.1);
+        agent.agentCommissionBalancePaise = (agent.agentCommissionBalancePaise || 0) + commPaise;
+        const commRecord: AgentCommissionRecord = {
+          commissionId: `COMM-${Date.now()}`,
+          agentId: agent.id,
+          sourcePlayerId: player.id,
+          sourcePlayerName: player.displayName,
+          amountPaise: commPaise,
+          sourceTransaction: dep.depositId,
+          status: 'CREDITED',
+          createdAt: new Date().toISOString(),
+        };
+        this.agentCommissions.unshift(commRecord);
+
+        // Record Agent Commission in ledger
+        this.recordLedgerEntry({
+          userId: agent.id,
+          role: 'agent',
+          transactionType: 'AGENT_COMMISSION',
+          amountPaise: commPaise,
+          balanceBeforePaise: agent.withdrawableBalancePaise,
+          balanceAfterPaise: agent.withdrawableBalancePaise,
+          bonusBeforePaise: 0,
+          bonusAfterPaise: 0,
+          referenceId: commRecord.commissionId,
+          actorId: 'system',
+          status: 'COMPLETED',
+          description: `10% Agent Commission (₹${(commPaise / 100).toLocaleString()}) from player ${player.displayName} deposit credited to Agent Commission Balance.`,
+        });
+      }
+    }
+
+    this.notify();
+    return {
+      success: true,
+      message: `Deposit of ₹${(dep.submittedAmountPaise / 100).toLocaleString()} approved and credited to Withdrawable Balance!`,
+    };
+  }
+
+  public rejectDepositRequest(
+    depositId: string,
+    masterId: string = 'master-admin',
+    reviewNote: string
+  ): { success: boolean; message: string } {
+    const dep = this.depositRequests.find((d) => d.depositId === depositId);
+    if (!dep) return { success: false, message: 'Deposit request not found.' };
+    if (dep.status !== 'PENDING') return { success: false, message: 'Deposit already reviewed.' };
+
+    const player = this.players.find((p) => p.id === dep.playerId) || this.currentUser;
+    dep.status = 'REJECTED';
+    dep.reviewedAt = new Date().toISOString();
+    dep.reviewedBy = masterId;
+    dep.reviewNote = reviewNote;
+
+    this.recordLedgerEntry({
+      userId: player.id,
+      role: 'player',
+      transactionType: 'DEPOSIT_REJECTED',
+      amountPaise: dep.submittedAmountPaise,
+      balanceBeforePaise: player.withdrawableBalancePaise,
+      balanceAfterPaise: player.withdrawableBalancePaise,
+      bonusBeforePaise: player.bonusBalancePaise,
+      bonusAfterPaise: player.bonusBalancePaise,
+      referenceId: dep.depositId,
+      actorId: masterId,
+      status: 'REJECTED',
+      description: `Deposit rejected: ${reviewNote}`,
+    });
+
+    this.recordAuditLog({
+      actorId: masterId,
+      role: 'master',
+      action: 'MASTER_REJECTED_DEPOSIT',
+      targetId: dep.depositId,
+      newValue: `Reason: ${reviewNote}`,
+      device: 'Master Console',
+    });
+
+    this.notify();
+    return { success: true, message: 'Deposit request rejected.' };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. WITHDRAWAL SYSTEM (Withdrawable Balance Only, Atomic Hold, Master Review)
+  // ---------------------------------------------------------------------------
+  public requestWithdrawal(params: {
+    playerId: string;
+    amountPaise: number;
+    upiId: string;
+    accountName: string;
+    agentId?: string;
+  }): { success: boolean; message: string; request?: WithdrawalRequestRecord } {
+    const player = this.players.find((p) => p.id === params.playerId) || this.currentUser;
+
+    if (params.amountPaise <= 0) {
+      return { success: false, message: 'Invalid withdrawal amount.' };
+    }
+
+    if (params.amountPaise < this.masterPaymentSettings.minWithdrawalPaise) {
+      return {
+        success: false,
+        message: `Minimum withdrawal amount is ₹${(this.masterPaymentSettings.minWithdrawalPaise / 100).toLocaleString()}.`,
+      };
+    }
+
+    // Strict validation: withdrawable balance ONLY. Bonus balance can never be withdrawn!
+    if (params.amountPaise > player.withdrawableBalancePaise) {
+      return {
+        success: false,
+        message: `Requested amount exceeds Withdrawable Balance (Available: ₹${(player.withdrawableBalancePaise / 100).toLocaleString()}). Note: Bonus Balance cannot be withdrawn.`,
+      };
+    }
+
+    const balanceBefore = player.withdrawableBalancePaise;
+
+    // Atomically reserve (deduct) the requested amount
+    player.withdrawableBalancePaise -= params.amountPaise;
+    player.walletBalance = Math.floor(player.withdrawableBalancePaise / 100);
+    player.mainBalance = Math.floor((player.withdrawableBalancePaise + player.bonusBalancePaise) / 100);
+
+    const newReq: WithdrawalRequestRecord = {
+      requestId: `WTH-REQ-${Date.now().toString().slice(-6)}`,
+      playerId: player.id,
+      playerName: player.displayName,
+      playerPhone: player.phoneNumber,
+      amountPaise: params.amountPaise,
+      upiId: params.upiId.trim(),
+      accountName: params.accountName.trim(),
+      status: 'PENDING',
+      createdAt: new Date().toISOString(),
+      agentId: params.agentId,
+    };
+
+    this.withdrawalRequests.unshift(newReq);
+
+    // Record immutable ledger entry
+    this.recordLedgerEntry({
+      userId: player.id,
+      role: 'player',
+      transactionType: 'WITHDRAWAL_REQUEST',
+      amountPaise: params.amountPaise,
+      balanceBeforePaise: balanceBefore,
+      balanceAfterPaise: player.withdrawableBalancePaise,
+      bonusBeforePaise: player.bonusBalancePaise,
+      bonusAfterPaise: player.bonusBalancePaise,
+      referenceId: newReq.requestId,
+      actorId: player.id,
+      status: 'PENDING',
+      description: `Withdrawal request submitted for ₹${(params.amountPaise / 100).toLocaleString()} to UPI: ${params.upiId}. Reserved from Withdrawable Balance.`,
+    });
+
+    this.notify();
+    return {
+      success: true,
+      message: `Withdrawal request of ₹${(params.amountPaise / 100).toLocaleString()} submitted. Amount held securely pending Master/Agent transfer.`,
+      request: newReq,
+    };
+  }
+
+  public approveWithdrawal(
+    requestId: string,
+    processorId: string = 'master-admin',
+    payoutReference?: string
+  ): { success: boolean; message: string } {
+    const req = this.withdrawalRequests.find((r) => r.requestId === requestId);
+    if (!req) return { success: false, message: 'Withdrawal request not found.' };
+    if (req.status !== 'PENDING' && req.status !== 'PROCESSING') {
+      return { success: false, message: 'Withdrawal request already processed.' };
+    }
+
+    req.status = 'APPROVED';
+    req.processedAt = new Date().toISOString();
+    req.processorId = processorId;
+    req.payoutReference = payoutReference || `UPI-${Date.now()}`;
+
+    const player = this.players.find((p) => p.id === req.playerId) || this.currentUser;
+
+    this.recordLedgerEntry({
+      userId: player.id,
+      role: 'player',
+      transactionType: 'WITHDRAWAL_APPROVED',
+      amountPaise: req.amountPaise,
+      balanceBeforePaise: player.withdrawableBalancePaise,
+      balanceAfterPaise: player.withdrawableBalancePaise,
+      bonusBeforePaise: player.bonusBalancePaise,
+      bonusAfterPaise: player.bonusBalancePaise,
+      referenceId: req.requestId,
+      actorId: processorId,
+      status: 'COMPLETED',
+      description: `Withdrawal of ₹${(req.amountPaise / 100).toLocaleString()} completed by ${processorId}. Payout Ref: ${req.payoutReference}.`,
+    });
+
+    this.recordAuditLog({
+      actorId: processorId,
+      role: processorId.startsWith('agent') ? 'agent' : 'master',
+      action: 'WITHDRAWAL_APPROVED',
+      targetId: req.requestId,
+      newValue: `Payout Ref: ${req.payoutReference}`,
+      device: 'Portal Console',
+    });
+
+    this.notify();
+    return {
+      success: true,
+      message: `Withdrawal of ₹${(req.amountPaise / 100).toLocaleString()} marked completed! Payout reference recorded.`,
+    };
+  }
+
+  public rejectWithdrawal(
+    requestId: string,
+    processorId: string = 'master-admin',
+    rejectionReason: string
+  ): { success: boolean; message: string } {
+    const req = this.withdrawalRequests.find((r) => r.requestId === requestId);
+    if (!req) return { success: false, message: 'Withdrawal request not found.' };
+    if (req.status !== 'PENDING' && req.status !== 'PROCESSING') {
+      return { success: false, message: 'Withdrawal request already processed.' };
+    }
+
+    const player = this.players.find((p) => p.id === req.playerId) || this.currentUser;
+    const balanceBefore = player.withdrawableBalancePaise;
+
+    // Atomically restore reserved amount back to withdrawable balance
+    player.withdrawableBalancePaise += req.amountPaise;
+    player.walletBalance = Math.floor(player.withdrawableBalancePaise / 100);
+    player.mainBalance = Math.floor((player.withdrawableBalancePaise + player.bonusBalancePaise) / 100);
+
+    req.status = 'REJECTED';
+    req.processedAt = new Date().toISOString();
+    req.processorId = processorId;
+    req.rejectionReason = rejectionReason;
+
+    this.recordLedgerEntry({
+      userId: player.id,
+      role: 'player',
+      transactionType: 'WITHDRAWAL_REJECTED',
+      amountPaise: req.amountPaise,
+      balanceBeforePaise: balanceBefore,
+      balanceAfterPaise: player.withdrawableBalancePaise,
+      bonusBeforePaise: player.bonusBalancePaise,
+      bonusAfterPaise: player.bonusBalancePaise,
+      referenceId: req.requestId,
+      actorId: processorId,
+      status: 'REJECTED',
+      description: `Withdrawal rejected: ${rejectionReason}. Reserved funds ₹${(req.amountPaise / 100).toLocaleString()} returned to Withdrawable Balance.`,
+    });
+
+    this.recordAuditLog({
+      actorId: processorId,
+      role: processorId.startsWith('agent') ? 'agent' : 'master',
+      action: 'WITHDRAWAL_REJECTED',
+      targetId: req.requestId,
+      newValue: `Reason: ${rejectionReason}`,
+      device: 'Portal Console',
+    });
+
+    this.notify();
+    return {
+      success: true,
+      message: `Withdrawal rejected. Reserved amount of ₹${(req.amountPaise / 100).toLocaleString()} has been atomically returned to player's Withdrawable Balance.`,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 6. AGENT COMMISSION WITHDRAWAL
+  // ---------------------------------------------------------------------------
+  public requestAgentCommissionWithdrawal(params: {
+    agentId: string;
+    amountPaise: number;
+    upiId: string;
+  }): { success: boolean; message: string } {
+    const agent = this.agents.find((a) => a.id === params.agentId);
+    if (!agent) return { success: false, message: 'Agent not found.' };
+
+    const commBalance = agent.agentCommissionBalancePaise || 0;
+    if (params.amountPaise > commBalance) {
+      return {
+        success: false,
+        message: `Requested amount exceeds Agent Commission Balance (Available: ₹${(commBalance / 100).toLocaleString()}).`,
+      };
+    }
+
+    agent.agentCommissionBalancePaise = commBalance - params.amountPaise;
+
+    this.recordLedgerEntry({
+      userId: agent.id,
+      role: 'agent',
+      transactionType: 'AGENT_COMMISSION_WITHDRAWAL',
+      amountPaise: params.amountPaise,
+      balanceBeforePaise: agent.withdrawableBalancePaise,
+      balanceAfterPaise: agent.withdrawableBalancePaise,
+      bonusBeforePaise: 0,
+      bonusAfterPaise: 0,
+      referenceId: `AGT-WTH-${Date.now()}`,
+      actorId: agent.id,
+      status: 'COMPLETED',
+      description: `Agent withdrawn ₹${(params.amountPaise / 100).toLocaleString()} from separated Commission Balance to UPI: ${params.upiId}.`,
+    });
+
+    this.notify();
+    return {
+      success: true,
+      message: `Commission withdrawal of ₹${(params.amountPaise / 100).toLocaleString()} processed successfully to ${params.upiId}.`,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // 7. REFERRAL SYSTEM
+  // ---------------------------------------------------------------------------
+  public recordReferralRegistration(referrerCode: string, newPlayer: UserProfile): boolean {
+    if (referrerCode.trim().toUpperCase() === newPlayer.referralCode?.toUpperCase()) {
+      return false; // Prevent self-referral
+    }
+
+    const referrer =
+      this.players.find((p) => p.referralCode?.toUpperCase() === referrerCode.trim().toUpperCase()) ||
+      this.agents.find((a) => a.referralCode?.toUpperCase() === referrerCode.trim().toUpperCase());
+
+    if (!referrer) return false;
+
+    const record: ReferralRecord = {
+      id: `REF-${Date.now()}`,
+      referrerUserId: referrer.id,
+      referredUserId: newPlayer.id,
+      referredUserName: newPlayer.displayName,
+      referralCode: referrerCode.trim().toUpperCase(),
+      status: 'REGISTERED',
+      createdAt: new Date().toISOString(),
+      idempotencyKey: `IDEM-REF-${referrer.id}-${newPlayer.id}`,
+      rewardAmountPaise: 50000, // ₹500
+      rewardCredited: false,
+    };
+
+    this.referrals.unshift(record);
+    newPlayer.referredByUserId = referrer.id;
+    this.notify();
+    return true;
+  }
+
+  public registerPlayer(params: {
+    displayName: string;
+    phoneNumber: string;
+    address?: string;
+    pincode?: string;
+    referralCode?: string;
+    assignedAgentId?: string;
+    avatar?: string;
+  }): UserProfile {
+    const id = `player-${Date.now()}`;
+    const code = 'WIN' + Math.floor(1000 + Math.random() * 9000) + params.displayName.slice(0, 3).toUpperCase();
+    const newPlayer: UserProfile = {
+      id,
+      displayName: params.displayName,
+      phoneNumber: params.phoneNumber,
+      role: 'player',
+      walletBalance: 1000,
+      mainBalance: 1500,
+      withdrawableBalancePaise: 100000, // ₹1,000 Withdrawable Balance
+      bonusBalancePaise: 50000, // ₹500 Bonus Balance (non-withdrawable)
+      agentCommissionBalancePaise: 0,
+      tier: 'Bronze',
+      level: 1,
+      status: 'active',
+      referralCode: code,
+      assignedAgentId: params.assignedAgentId || 'agent-vikram',
+      assignedAgentName: 'Vikram Sharma (Agent)',
+      address: params.address,
+      pincode: params.pincode,
+      avatar:
+        params.avatar ||
+        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+      joinedDate: new Date().toISOString(),
+      currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
+      stats: {
+        gamesPlayed: 0,
+        highestVirtualWin: 0,
+        favoriteCategory: 'numbers',
+        winRate: '0%',
+      },
+    };
+
+    this.players.push(newPlayer);
+    this.currentUser = newPlayer;
+
+    this.recordLedgerEntry({
+      userId: newPlayer.id,
+      role: 'player',
+      transactionType: 'BONUS_REWARD',
+      amountPaise: 150000,
+      balanceBeforePaise: 0,
+      balanceAfterPaise: 100000,
+      bonusBeforePaise: 0,
+      bonusAfterPaise: 50000,
+      actorId: 'system',
+      status: 'COMPLETED',
+      description: 'Account registration: ₹1,000 Withdrawable Balance + ₹500 Bonus Balance credited.',
+    });
+
+    if (params.referralCode) {
+      this.recordReferralRegistration(params.referralCode, newPlayer);
+    }
+
+    this.notify();
+    return newPlayer;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 8. BIDDING & 15-MINUTE FREEZE ENGINE (Integer Paise)
+  // Max 37 unique numbers allowed per round
   // ---------------------------------------------------------------------------
   public placeBids(params: {
     gameId: WinoraGameId;
     bids: { number: number; amount: number; color?: 'GREEN' | 'RED' }[];
     walletType?: 'main';
-  }): { success: boolean; message: string; totalDebited: number } {
+  }): { success: boolean; message: string; totalDebitedPaise: number } {
     const { gameId, bids } = params;
-    const round = this.rounds[gameId];
+    // Map alias if needed
+    const resolvedGameId =
+      gameId === 'game_x' ? 'kalyan_morning' :
+      gameId === 'game_y' ? 'kalyan' :
+      gameId === 'game_z' ? 'kalyan_night' :
+      gameId === 'hourly_dhamaka' ? 'hourly_play' : gameId;
 
+    const round = this.rounds[resolvedGameId] || this.rounds[gameId];
     if (!round) {
-      return { success: false, message: 'Invalid game round.', totalDebited: 0 };
+      return { success: false, message: 'Invalid game round.', totalDebitedPaise: 0 };
     }
 
     // Strict 15-Minute Freeze Check
@@ -612,45 +1488,60 @@ class WinoraStateManager {
       return {
         success: false,
         message: 'Bidding is strictly FROZEN! Cutoff occurs 15 minutes prior to result declaration.',
-        totalDebited: 0,
+        totalDebitedPaise: 0,
       };
     }
 
-    const totalAmount = bids.reduce((acc, b) => acc + b.amount, 0);
-    if (totalAmount <= 0) {
-      return { success: false, message: 'Please enter a valid bid amount.', totalDebited: 0 };
-    }
-
-    // Check balance in Main Wallet
-    if (this.currentUser.mainBalance < totalAmount) {
+    // Constraint: Up to 37 unique numbers per round
+    const uniqueNumbers = new Set(bids.map((b) => b.number));
+    if (uniqueNumbers.size > 37) {
       return {
         success: false,
-        message: `Insufficient Main Wallet balance (Available: ₹${this.currentUser.mainBalance.toLocaleString()}).`,
-        totalDebited: 0,
+        message: 'Maximum 37 unique numbers limit exceeded per round.',
+        totalDebitedPaise: 0,
       };
     }
 
-    // Deduct from Main Wallet
-    this.currentUser.mainBalance -= totalAmount;
-    this.currentUser.walletBalance = this.currentUser.mainBalance;
+    const totalAmountRupees = bids.reduce((acc, b) => acc + b.amount, 0);
+    const totalAmountPaise = Math.round(totalAmountRupees * 100);
 
-    const gameConfig = WINORA_GAMES.find((g) => g.id === gameId);
+    if (totalAmountPaise <= 0) {
+      return { success: false, message: 'Please enter a valid bid amount.', totalDebitedPaise: 0 };
+    }
 
-    // Record individual bids with explicitly selected color
+    // Check Withdrawable Balance (bids are debited from Withdrawable Balance)
+    if (this.currentUser.withdrawableBalancePaise < totalAmountPaise) {
+      return {
+        success: false,
+        message: `Insufficient Withdrawable Balance (Available: ₹${(this.currentUser.withdrawableBalancePaise / 100).toLocaleString()}).`,
+        totalDebitedPaise: 0,
+      };
+    }
+
+    const balanceBefore = this.currentUser.withdrawableBalancePaise;
+
+    // Atomically debit stake in paise
+    this.currentUser.withdrawableBalancePaise -= totalAmountPaise;
+    this.currentUser.walletBalance = Math.floor(this.currentUser.withdrawableBalancePaise / 100);
+    this.currentUser.mainBalance = Math.floor(
+      (this.currentUser.withdrawableBalancePaise + this.currentUser.bonusBalancePaise) / 100
+    );
+
+    const gameConfig = WINORA_GAMES.find((g) => g.id === resolvedGameId);
+
     bids.forEach((b) => {
-      const explicitColor = b.color || 'GREEN';
+      const explicitColor = b.color || (isNumberGreen(b.number) ? 'GREEN' : 'RED');
       const isGreen = explicitColor === 'GREEN';
       const newBid: BidRecord = {
         id: `bid-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        gameId,
-        gameName: gameConfig?.name || gameId,
+        gameId: resolvedGameId,
+        gameName: gameConfig?.name || round.gameName,
         roundId: round.id,
         userId: this.currentUser.id,
         userName: this.currentUser.displayName,
         number: b.number,
         amount: b.amount,
         walletUsed: 'main',
-        color: explicitColor,
         isGreen,
         status: 'placed',
         payoutAmount: 0,
@@ -660,211 +1551,131 @@ class WinoraStateManager {
       this.bids.unshift(newBid);
     });
 
-    // Update round pool
-    round.totalBidsPool += totalAmount;
+    round.totalBidsPool += totalAmountRupees;
 
-    // Record Activity History
-    this.history.unshift({
-      id: `act-bid-${Date.now()}`,
-      type: 'bid',
-      title: `${gameConfig?.name}: Placed ${bids.length} Bid(s)`,
-      amount: totalAmount,
-      wallet: 'main',
-      status: 'completed',
-      timestamp: new Date().toISOString(),
-      details: `Numbers: ${bids.map((b) => `#${b.number.toString().padStart(2, '0')} (₹${b.amount})`).join(', ')}`,
-      gameName: gameConfig?.name,
+    // Create Immutable Ledger Entry
+    this.recordLedgerEntry({
+      userId: this.currentUser.id,
+      role: 'player',
+      transactionType: 'GAME_STAKE',
+      amountPaise: totalAmountPaise,
+      balanceBeforePaise: balanceBefore,
+      balanceAfterPaise: this.currentUser.withdrawableBalancePaise,
+      bonusBeforePaise: this.currentUser.bonusBalancePaise,
+      bonusAfterPaise: this.currentUser.bonusBalancePaise,
+      gameId: resolvedGameId,
+      roundId: round.id,
+      actorId: this.currentUser.id,
+      status: 'COMPLETED',
+      description: `Placed ${bids.length} number bid(s) totaling ₹${totalAmountRupees.toLocaleString()} on ${round.gameName}.`,
     });
 
     this.notify();
     return {
       success: true,
-      message: `Successfully placed ${bids.length} bid(s) totaling ₹${totalAmount.toLocaleString()} using Main Wallet.`,
-      totalDebited: totalAmount,
+      message: `Successfully placed ${bids.length} bid(s) for ₹${totalAmountRupees.toLocaleString()}!`,
+      totalDebitedPaise: totalAmountPaise,
     };
   }
 
   // ---------------------------------------------------------------------------
-  // DUAL-CONFIRMATION HANDSHAKE (DEPOSITS & WITHDRAWALS)
+  // 10. NUMBER-WISE HOUSE PROFIT/LOSS & MASTER ACCOUNTING (00 TO 99)
   // ---------------------------------------------------------------------------
-  public requestHandshake(params: {
-    type: 'deposit' | 'withdrawal';
-    amount: number;
-    agentId: string;
-    notes?: string;
-    payoutDetails?: { upiId?: string; accountNumber?: string; ifsc?: string };
-  }): { success: boolean; message: string; transactionId: string } {
-    const { type, amount, agentId, notes, payoutDetails } = params;
-    const agent = this.agents.find((a) => a.id === agentId) || this.agents[0];
+  public calculateNumberWisePnL(gameId: WinoraGameId): {
+    rows: NumberAccountingRow[];
+    totalStakePaise: number;
+    totalPlayers: number;
+    totalPayoutPaise: number;
+    totalProtectionPaise: number;
+    netHousePnLPaise: number;
+    highestLossNumber: number;
+    highestProfitNumber: number;
+  } {
+    const resolvedGameId =
+      gameId === 'game_x' ? 'kalyan_morning' :
+      gameId === 'game_y' ? 'kalyan' :
+      gameId === 'game_z' ? 'kalyan_night' :
+      gameId === 'hourly_dhamaka' ? 'hourly_play' : gameId;
 
-    if (amount < 100) {
-      return { success: false, message: 'Minimum transaction amount is ₹100.', transactionId: '' };
-    }
+    const round = this.rounds[resolvedGameId] || this.rounds[gameId];
+    const roundBids = this.bids.filter((b) => b.roundId === round.id);
 
-    if (type === 'withdrawal') {
-      if (this.currentUser.mainBalance < amount) {
-        return {
-          success: false,
-          message: `Insufficient Main Wallet (Withdrawable) balance. Available: ₹${this.currentUser.mainBalance.toLocaleString()}`,
-          transactionId: '',
-        };
-      }
-      // Hold the withdrawal amount
-      this.currentUser.mainBalance -= amount;
-      this.currentUser.walletBalance = this.currentUser.mainBalance;
-    }
+    const totalStakePaise = roundBids.reduce((acc, b) => acc + Math.round(b.amount * 100), 0);
+    const uniquePlayers = new Set(roundBids.map((b) => b.userId));
 
-    const tx: HandshakeTransaction = {
-      id: `tx-hs-${Date.now().toString().slice(-6)}`,
-      senderId: this.currentUser.id,
-      senderName: this.currentUser.displayName,
-      senderPhone: this.currentUser.phoneNumber,
-      receiverId: agent.id,
-      agentName: agent.displayName,
-      agentPhone: agent.phoneNumber,
-      amount,
-      type,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      isFirstDeposit: type === 'deposit' && !this.currentUser.hasMadeFirstDeposit,
-      notes,
-      payoutDetails,
-    };
+    const isHourly = resolvedGameId === 'hourly_play' || gameId === 'hourly_dhamaka';
 
-    this.handshakes.unshift(tx);
+    const rows: NumberAccountingRow[] = [];
+    let highestProfitNumber = 0;
+    let highestLossNumber = 0;
+    let maxProfitPaise = -Infinity;
+    let maxLossPaise = Infinity;
 
-    this.history.unshift({
-      id: `act-hs-${Date.now()}`,
-      type,
-      title: `${type === 'deposit' ? 'Deposit' : 'Withdrawal'} Request (Handshake Pending)`,
-      amount,
-      wallet: 'main',
-      status: 'pending',
-      timestamp: new Date().toISOString(),
-      details: `Assigned Agent: ${agent.displayName} (${agent.phoneNumber}). Awaiting agent dual-confirmation.`,
-      referenceId: tx.id,
-    });
+    for (let i = 0; i < 100; i++) {
+      const numberBids = roundBids.filter((b) => b.number === i);
+      const numberStakePaise = numberBids.reduce((acc, b) => acc + Math.round(b.amount * 100), 0);
+      const numberPlayers = new Set(numberBids.map((b) => b.userId)).size;
 
-    this.notify();
-    return {
-      success: true,
-      message: `Handshake request submitted! Agent ${agent.displayName} will confirm and settle your ${type}.`,
-      transactionId: tx.id,
-    };
-  }
+      // Normal 90x liability if number `i` wins
+      const payoutLiabilityPaise = numberStakePaise * 90;
 
-  // Agent Dual-Confirmation Handshake Approval
-  private processedReferrals: Set<string> = new Set();
-
-  public approveHandshake(transactionId: string): { success: boolean; message: string } {
-    const tx = this.handshakes.find((t) => t.id === transactionId);
-    if (!tx) return { success: false, message: 'Transaction not found.' };
-    if (tx.status !== 'pending') return { success: false, message: 'Transaction is already processed.' };
-
-    tx.status = 'completed';
-    tx.completedAt = new Date().toISOString();
-
-    const player = this.players.find((p) => p.id === tx.senderId) || this.currentUser;
-    const agent = this.agents.find((a) => a.id === tx.receiverId);
-
-    if (tx.type === 'deposit') {
-      // 1. Credit player main wallet
-      player.mainBalance += tx.amount;
-      player.walletBalance = player.mainBalance;
-
-      // 2. REFERRAL TRIGGER: Player -> Player 1st Deposit
-      // 100% credited to Main Wallet with strict idempotency (credited once per qualifying referral)
-      const referralKey = `ref-qualifying-${player.id}`;
-      if (!player.hasMadeFirstDeposit && player.referrerId && !this.processedReferrals.has(referralKey)) {
-        this.processedReferrals.add(referralKey);
-        player.hasMadeFirstDeposit = true;
-        const rewardAmount = Math.floor(tx.amount * 0.5);
-
-        // Credit new player reward to Main Wallet
-        player.mainBalance += rewardAmount;
-        player.walletBalance = player.mainBalance;
-
-        // Credit referrer reward to Main Wallet
-        const referrer = this.players.find((p) => p.id === player.referrerId);
-        if (referrer) {
-          referrer.mainBalance += rewardAmount;
-          referrer.walletBalance = referrer.mainBalance;
-        }
-
-        // Debit from Master Pool
-        this.masterProfile.mainBalance -= rewardAmount * 2;
-        this.masterProfile.walletBalance = this.masterProfile.mainBalance;
-
-        this.history.unshift({
-          id: `act-ref-${Date.now()}`,
-          type: 'referral',
-          title: 'Referral Reward (Main Wallet)',
-          amount: rewardAmount,
-          wallet: 'main',
-          status: 'completed',
-          timestamp: new Date().toISOString(),
-          details: `First qualifying deposit referral: ₹${rewardAmount} credited to ${player.displayName} & referrer Main Wallets (Key: ${referralKey}).`,
-          referenceId: referralKey,
+      // Hourly Protection Liability:
+      // Even result = GREEN, Odd result = RED.
+      // If `i` is Even (GREEN), all eligible green bidders get 80% refund as Bonus Balance
+      // If `i` is Odd (RED), all eligible red bidders get 80% refund as Bonus Balance
+      let protectionLiabilityPaise = 0;
+      if (isHourly) {
+        const winningColor = i % 2 === 0 ? 'GREEN' : 'RED';
+        const eligibleProtectionBids = roundBids.filter((b) => {
+          const isBidGreen = b.isGreen ?? (b.number % 2 === 0);
+          return winningColor === 'GREEN' ? isBidGreen : !isBidGreen;
         });
+
+        // Sum stake of protected side excluding exact winning number (which gets 90x)
+        const eligibleProtectionStakePaise = eligibleProtectionBids
+          .filter((b) => b.number !== i)
+          .reduce((acc, b) => acc + Math.round(b.amount * 100), 0);
+
+        protectionLiabilityPaise = Math.round(eligibleProtectionStakePaise * 0.8);
       }
 
-      // 3. AGENT COMMISSION TRIGGER: Agent -> Player 10% All-time Deposit
-      if (agent) {
-        const commission = Math.floor(tx.amount * 0.1);
-        agent.mainBalance += commission;
-        agent.walletBalance = agent.mainBalance;
-        this.masterProfile.mainBalance -= commission;
+      const netHouseProfitLossPaise = totalStakePaise - (payoutLiabilityPaise + protectionLiabilityPaise);
 
-        this.history.unshift({
-          id: `act-comm-${Date.now()}`,
-          type: 'referral',
-          title: `Agent 10% Deposit Commission`,
-          amount: commission,
-          wallet: 'main',
-          status: 'completed',
-          timestamp: new Date().toISOString(),
-          details: `Agent ${agent.displayName} earned 10% commission on deposit of ₹${tx.amount}. Credited to Main Wallet.`,
-        });
+      if (netHouseProfitLossPaise > maxProfitPaise) {
+        maxProfitPaise = netHouseProfitLossPaise;
+        highestProfitNumber = i;
       }
-    } else {
-      // Withdrawal completed: funds already held, now finalized
+      if (netHouseProfitLossPaise < maxLossPaise) {
+        maxLossPaise = netHouseProfitLossPaise;
+        highestLossNumber = i;
+      }
+
+      rows.push({
+        number: i,
+        formattedNumber: i.toString().padStart(2, '0'),
+        color: isNumberGreen(i) ? 'GREEN' : 'RED',
+        totalBidPaise: numberStakePaise,
+        playerCount: numberPlayers,
+        winningStakePaise: numberStakePaise,
+        payoutLiabilityPaise,
+        protectionLiabilityPaise,
+        netHouseProfitLossPaise,
+      });
     }
 
-    this.notify();
     return {
-      success: true,
-      message: `Dual-confirmation handshake approved! ${tx.type === 'deposit' ? 'Funds & commissions credited to Main Wallet.' : 'Withdrawal completed successfully.'}`,
+      rows,
+      totalStakePaise,
+      totalPlayers: uniquePlayers.size,
+      totalPayoutPaise: rows[highestLossNumber]?.payoutLiabilityPaise || 0,
+      totalProtectionPaise: rows[highestLossNumber]?.protectionLiabilityPaise || 0,
+      netHousePnLPaise: maxProfitPaise,
+      highestLossNumber,
+      highestProfitNumber,
     };
   }
 
-  // Reject Handshake
-  public rejectHandshake(transactionId: string, reason: string): { success: boolean; message: string } {
-    const tx = this.handshakes.find((t) => t.id === transactionId);
-    if (!tx) return { success: false, message: 'Transaction not found.' };
-    if (tx.status !== 'pending') return { success: false, message: 'Transaction already processed.' };
-
-    tx.status = 'rejected';
-    tx.notes = `Rejected by Agent: ${reason}`;
-
-    // Refund player held balance if it was a withdrawal
-    if (tx.type === 'withdrawal') {
-      const player = this.players.find((p) => p.id === tx.senderId) || this.currentUser;
-      player.mainBalance += tx.amount;
-      player.walletBalance = player.mainBalance;
-    }
-
-    this.notify();
-    return { success: true, message: 'Handshake rejected. Held funds refunded to player if withdrawal.' };
-  }
-
-  // ---------------------------------------------------------------------------
-  // MASTER 00–99 RISK & EXPOSURE CALCULATOR
-  // Computes for all 100 numbers:
-  // - Total Bids on number
-  // - 90x Payout liability
-  // - Green Refunds liability (80% on green numbers for Hourly Dhamaka)
-  // - Net Master Profit / Loss
-  // ---------------------------------------------------------------------------
+  // Legacy alias method for components expecting calculate00to99Risk
   public calculate00to99Risk(gameId: WinoraGameId): {
     items: NumberRiskItem[];
     totalPool: number;
@@ -873,157 +1684,184 @@ class WinoraStateManager {
     maxProfitAmount: number;
     maxLossAmount: number;
   } {
-    const round = this.rounds[gameId];
-    const roundBids = this.bids.filter((b) => b.roundId === round.id);
-    const totalPool = roundBids.reduce((acc, b) => acc + b.amount, 0);
-
-    const isDhamaka = gameId === 'hourly_dhamaka';
-
-    // Total green bids across the entire round (needed for Dhamaka refund calc)
-    const totalGreenBidsAmount = roundBids
-      .filter((b) => b.isGreen)
-      .reduce((acc, b) => acc + b.amount, 0);
-
-    const items: NumberRiskItem[] = [];
-    let highestProfitNumber = 0;
-    let highestLossNumber = 0;
-    let maxProfitAmount = -Infinity;
-    let maxLossAmount = Infinity;
-
-    for (let i = 0; i < 100; i++) {
-      const numberBids = roundBids.filter((b) => b.number === i);
-      const totalBidsOnThisNumber = numberBids.reduce((acc, b) => acc + b.amount, 0);
-      const bidCount = numberBids.length;
-
-      // 90x Payout liability if number `i` wins
-      const payout90x = totalBidsOnThisNumber * 90;
-
-      // Dhamaka 80% Green Refund liability:
-      // If number `i` wins:
-      // All green number bids EXCEPT the winning number get 80% refund.
-      // (If `i` is green, winners on `i` get 90x payout, other green numbers get 80% refund).
-      let greenRefunds = 0;
-      if (isDhamaka) {
-        const otherGreenBids = isNumberGreen(i)
-          ? totalGreenBidsAmount - totalBidsOnThisNumber
-          : totalGreenBidsAmount;
-        greenRefunds = Math.round(otherGreenBids * 0.8);
-      }
-
-      // Net Master Profit/Loss = Total Pool Collections - (90x Payout + Green Refunds)
-      const netMasterPnL = totalPool - (payout90x + greenRefunds);
-
-      if (netMasterPnL > maxProfitAmount) {
-        maxProfitAmount = netMasterPnL;
-        highestProfitNumber = i;
-      }
-      if (netMasterPnL < maxLossAmount) {
-        maxLossAmount = netMasterPnL;
-        highestLossNumber = i;
-      }
-
-      items.push({
-        number: i,
-        formattedNumber: i.toString().padStart(2, '0'),
-        isGreen: isNumberGreen(i),
-        totalBids: totalBidsOnThisNumber,
-        bidCount,
-        payout90x,
-        greenRefunds,
-        netMasterPnL,
-      });
-    }
-
+    const pnl = this.calculateNumberWisePnL(gameId);
     return {
-      items,
-      totalPool,
-      highestProfitNumber,
-      highestLossNumber,
-      maxProfitAmount,
-      maxLossAmount,
+      items: pnl.rows.map((r) => ({
+        number: r.number,
+        formattedNumber: r.formattedNumber,
+        isGreen: r.color === 'GREEN',
+        totalBids: r.totalBidPaise / 100,
+        bidCount: r.playerCount,
+        payout90x: r.payoutLiabilityPaise / 100,
+        greenRefunds: r.protectionLiabilityPaise / 100,
+        netMasterPnL: r.netHouseProfitLossPaise / 100,
+      })),
+      totalPool: pnl.totalStakePaise / 100,
+      highestProfitNumber: pnl.highestProfitNumber,
+      highestLossNumber: pnl.highestLossNumber,
+      maxProfitAmount: (pnl.rows[pnl.highestProfitNumber]?.netHouseProfitLossPaise || 0) / 100,
+      maxLossAmount: (pnl.rows[pnl.highestLossNumber]?.netHouseProfitLossPaise || 0) / 100,
     };
   }
 
   // ---------------------------------------------------------------------------
-  // MASTER: DECLARE WINNING NUMBER & SETTLE ROUND
+  // 11. MASTER SETTLEMENT: DECLARE WINNING NUMBER & SETTLE IDEMPOTENTLY
   // ---------------------------------------------------------------------------
-  public declareWinningNumber(gameId: WinoraGameId, winningNumber: number): {
+  public declareWinningNumber(
+    gameId: WinoraGameId,
+    winningNumber: number
+  ): {
     success: boolean;
     message: string;
-    totalWinnersPaid: number;
-    totalRefundsPaid: number;
-    netMasterPnL: number;
+    totalWinnersPaidPaise: number;
+    totalProtectionPaidPaise: number;
+    netHousePnLPaise: number;
   } {
-    const round = this.rounds[gameId];
-    if (!round) return { success: false, message: 'Invalid round', totalWinnersPaid: 0, totalRefundsPaid: 0, netMasterPnL: 0 };
+    const resolvedGameId =
+      gameId === 'game_x' ? 'kalyan_morning' :
+      gameId === 'game_y' ? 'kalyan' :
+      gameId === 'game_z' ? 'kalyan_night' :
+      gameId === 'hourly_dhamaka' ? 'hourly_play' : gameId;
+
+    const round = this.rounds[resolvedGameId] || this.rounds[gameId];
+    if (!round) {
+      return {
+        success: false,
+        message: 'Invalid round',
+        totalWinnersPaidPaise: 0,
+        totalProtectionPaidPaise: 0,
+        netHousePnLPaise: 0,
+      };
+    }
 
     round.resultNumber = winningNumber.toString().padStart(2, '0');
     round.status = 'completed';
     round.declaredAt = new Date().toISOString();
 
-    const isDhamaka = gameId === 'hourly_dhamaka';
+    const isHourly = resolvedGameId === 'hourly_play' || gameId === 'hourly_dhamaka';
+    const winningColor: 'GREEN' | 'RED' = winningNumber % 2 === 0 ? 'GREEN' : 'RED';
+    round.resultColor = winningColor;
+
     const roundBids = this.bids.filter((b) => b.roundId === round.id);
 
-    let totalWinnersPaid = 0;
-    let totalRefundsPaid = 0;
+    let totalWinnersPaidPaise = 0;
+    let totalProtectionPaidPaise = 0;
+    const totalPoolPaise = roundBids.reduce((acc, b) => acc + Math.round(b.amount * 100), 0);
 
     roundBids.forEach((bid) => {
       const player = this.players.find((p) => p.id === bid.userId) || this.currentUser;
 
       if (bid.number === winningNumber) {
-        // WINNER! 90x Payout credited to Main Wallet
-        const winPayout = bid.amount * 90;
+        // WINNER! 90x Payout credited to Withdrawable Balance
+        const winPayoutRupees = bid.amount * 90;
+        const winPayoutPaise = winPayoutRupees * 100;
         bid.status = 'won';
-        bid.payoutAmount = winPayout;
-        player.mainBalance += winPayout;
-        player.walletBalance = player.mainBalance;
-        totalWinnersPaid += winPayout;
+        bid.payoutAmount = winPayoutRupees;
+
+        const balanceBefore = player.withdrawableBalancePaise;
+        player.withdrawableBalancePaise += winPayoutPaise;
+        player.walletBalance = Math.floor(player.withdrawableBalancePaise / 100);
+        player.mainBalance = Math.floor((player.withdrawableBalancePaise + player.bonusBalancePaise) / 100);
+        totalWinnersPaidPaise += winPayoutPaise;
+
+        // Record Win in ledger
+        this.recordLedgerEntry({
+          userId: player.id,
+          role: 'player',
+          transactionType: 'GAME_WIN',
+          amountPaise: winPayoutPaise,
+          balanceBeforePaise: balanceBefore,
+          balanceAfterPaise: player.withdrawableBalancePaise,
+          bonusBeforePaise: player.bonusBalancePaise,
+          bonusAfterPaise: player.bonusBalancePaise,
+          gameId: resolvedGameId,
+          roundId: round.id,
+          actorId: 'system',
+          status: 'COMPLETED',
+          description: `90× Winning payout on Number #${winningNumber.toString().padStart(2, '0')} for ${round.gameName}.`,
+        });
 
         this.history.unshift({
           id: `act-win-${Date.now()}-${bid.id}`,
           type: 'win',
           title: `${round.gameName}: 90× Win on #${winningNumber.toString().padStart(2, '0')}`,
-          amount: winPayout,
+          amount: winPayoutRupees,
           wallet: 'main',
           status: 'won',
           timestamp: new Date().toISOString(),
-          details: `Bid ₹${bid.amount} × 90 = ₹${winPayout.toLocaleString()} credited to Main Wallet!`,
+          details: `Bid ₹${bid.amount} × 90 = ₹${winPayoutRupees.toLocaleString()} credited to Withdrawable Balance!`,
           gameName: round.gameName,
         });
-      } else if (isDhamaka && bid.isGreen) {
-        // Hourly Dhamaka: 80% Green Protection Refund on non-winning Green numbers!
-        const refundAmt = Math.round(bid.amount * 0.8);
-        bid.status = 'refunded';
-        bid.refundAmount = refundAmt;
-        player.mainBalance += refundAmt;
-        player.walletBalance = player.mainBalance;
-        totalRefundsPaid += refundAmt;
+      } else if (isHourly) {
+        // Hourly Play Protection:
+        // If result is GREEN (Even): eligible GREEN bidders receive 80% of green stake as BONUS BALANCE
+        // If result is RED (Odd): eligible RED bidders receive 80% of red stake as BONUS BALANCE
+        const bidIsGreen = bid.isGreen ?? (bid.number % 2 === 0);
+        const matchesWinningSide = winningColor === 'GREEN' ? bidIsGreen : !bidIsGreen;
 
-        this.history.unshift({
-          id: `act-ref-${Date.now()}-${bid.id}`,
-          type: 'refund',
-          title: `Hourly Dhamaka: 80% Green Refund on #${bid.number.toString().padStart(2, '0')}`,
-          amount: refundAmt,
-          wallet: 'main',
-          status: 'refunded',
-          timestamp: new Date().toISOString(),
-          details: `Result was #${winningNumber.toString().padStart(2, '0')}. 80% refund (₹${refundAmt}) credited to Main Wallet.`,
-          gameName: round.gameName,
-        });
+        if (matchesWinningSide) {
+          const refundRupees = Math.round(bid.amount * 0.8);
+          const refundPaise = refundRupees * 100;
+          bid.status = 'refunded';
+          bid.refundAmount = refundRupees;
+
+          const bonusBefore = player.bonusBalancePaise;
+          // Protection is credited strictly to non-withdrawable Bonus Balance
+          player.bonusBalancePaise += refundPaise;
+          player.mainBalance = Math.floor((player.withdrawableBalancePaise + player.bonusBalancePaise) / 100);
+          totalProtectionPaidPaise += refundPaise;
+
+          this.recordLedgerEntry({
+            userId: player.id,
+            role: 'player',
+            transactionType: 'HOURLY_PROTECTION',
+            amountPaise: refundPaise,
+            balanceBeforePaise: player.withdrawableBalancePaise,
+            balanceAfterPaise: player.withdrawableBalancePaise,
+            bonusBeforePaise: bonusBefore,
+            bonusAfterPaise: player.bonusBalancePaise,
+            gameId: resolvedGameId,
+            roundId: round.id,
+            actorId: 'system',
+            status: 'COMPLETED',
+            description: `80% Hourly Protection on ${winningColor} side credited to Bonus Balance.`,
+          });
+
+          this.history.unshift({
+            id: `act-ref-${Date.now()}-${bid.id}`,
+            type: 'refund',
+            title: `Hourly Play: 80% Protection Refund on #${bid.number.toString().padStart(2, '0')}`,
+            amount: refundRupees,
+            wallet: 'main',
+            status: 'refunded',
+            timestamp: new Date().toISOString(),
+            details: `Result was #${winningNumber.toString().padStart(2, '0')} (${winningColor}). 80% refund (₹${refundRupees}) credited to Bonus Balance.`,
+            gameName: round.gameName,
+          });
+        } else {
+          bid.status = 'lost';
+        }
       } else {
         bid.status = 'lost';
       }
     });
 
-    const netMasterPnL = round.totalBidsPool - (totalWinnersPaid + totalRefundsPaid);
-    this.masterProfile.mainBalance += netMasterPnL;
-    this.masterProfile.walletBalance = this.masterProfile.mainBalance;
+    const netHousePnLPaise = totalPoolPaise - (totalWinnersPaidPaise + totalProtectionPaidPaise);
+
+    this.recordAuditLog({
+      actorId: 'master-admin',
+      role: 'master',
+      action: 'MASTER_DECLARED_RESULT',
+      targetId: round.id,
+      newValue: `Declared #${winningNumber.toString().padStart(2, '0')} (${winningColor}). Total payout: ₹${(totalWinnersPaidPaise / 100).toLocaleString()}, Protection: ₹${(totalProtectionPaidPaise / 100).toLocaleString()}, Net P/L: ₹${(netHousePnLPaise / 100).toLocaleString()}`,
+      device: 'Master Console',
+    });
 
     // Advance round to new round
     const nextTimes = createRoundTimes(60);
-    this.rounds[gameId] = {
-      id: `round-${gameId}-${round.roundNumber + 1}`,
-      gameId,
+    this.rounds[resolvedGameId] = {
+      id: `round-${resolvedGameId}-${round.roundNumber + 1}`,
+      gameId: resolvedGameId,
       gameName: round.gameName,
       roundNumber: round.roundNumber + 1,
       freezeTime: nextTimes.freezeTime,
@@ -1035,45 +1873,170 @@ class WinoraStateManager {
     this.notify();
     return {
       success: true,
-      message: `Winning number #${winningNumber.toString().padStart(2, '0')} declared! 90× Payouts (₹${totalWinnersPaid.toLocaleString()}) & Green Refunds (₹${totalRefundsPaid.toLocaleString()}) settled. Master Net P&L: ₹${netMasterPnL.toLocaleString()}`,
-      totalWinnersPaid,
-      totalRefundsPaid,
-      netMasterPnL,
+      message: `Winning number #${winningNumber.toString().padStart(2, '0')} declared! 90× Payouts (₹${(totalWinnersPaidPaise / 100).toLocaleString()}) & Protection (₹${(totalProtectionPaidPaise / 100).toLocaleString()}) settled. House Net P/L: ₹${(netHousePnLPaise / 100).toLocaleString()}`,
+      totalWinnersPaidPaise,
+      totalProtectionPaidPaise,
+      netHousePnLPaise,
     };
   }
 
-  // Master Financial Workflow: Transfer coins to Agent
-  public masterTransferToAgent(agentId: string, amount: number): { success: boolean; message: string } {
-    const agent = this.agents.find((a) => a.id === agentId);
-    if (!agent) return { success: false, message: 'Agent not found.' };
-    if (this.masterProfile.mainBalance < amount) {
-      return { success: false, message: 'Insufficient Master coins balance.' };
+  // ---------------------------------------------------------------------------
+  // 14. MASTER WALLET DASHBOARD STATS
+  // ---------------------------------------------------------------------------
+  public getMasterDashboardStats(): MasterDashboardStats {
+    const totalPlayerBalancesPaise = this.players.reduce(
+      (sum, p) => sum + p.withdrawableBalancePaise,
+      0
+    );
+    const totalBonusBalancesPaise = this.players.reduce(
+      (sum, p) => sum + p.bonusBalancePaise,
+      0
+    );
+
+    const pendingDeposits = this.depositRequests.filter((d) => d.status === 'PENDING');
+    const approvedDeposits = this.depositRequests.filter((d) => d.status === 'APPROVED');
+    const pendingWithdrawals = this.withdrawalRequests.filter((w) => w.status === 'PENDING');
+    const completedWithdrawals = this.withdrawalRequests.filter((w) => w.status === 'APPROVED');
+
+    const agentCommissionsPaise = this.agents.reduce(
+      (sum, a) => sum + (a.agentCommissionBalancePaise || 0),
+      0
+    );
+
+    const totalGameStakesPaise = this.bids.reduce((sum, b) => sum + Math.round(b.amount * 100), 0);
+    const totalPayoutsPaise = this.bids.reduce((sum, b) => sum + Math.round((b.payoutAmount || 0) * 100), 0);
+    const totalProtectionPaise = this.bids.reduce((sum, b) => sum + Math.round((b.refundAmount || 0) * 100), 0);
+    const houseProfitLossPaise = totalGameStakesPaise - totalPayoutsPaise - totalProtectionPaise;
+
+    return {
+      totalPlayerBalancesPaise,
+      totalBonusBalancesPaise,
+      pendingDepositsCount: pendingDeposits.length,
+      pendingDepositsPaise: pendingDeposits.reduce((sum, d) => sum + d.submittedAmountPaise, 0),
+      approvedDepositsCount: approvedDeposits.length,
+      approvedDepositsPaise: approvedDeposits.reduce(
+        (sum, d) => sum + (d.approvedAmountPaise || d.submittedAmountPaise),
+        0
+      ),
+      pendingWithdrawalsCount: pendingWithdrawals.length,
+      pendingWithdrawalsPaise: pendingWithdrawals.reduce((sum, w) => sum + w.amountPaise, 0),
+      completedWithdrawalsCount: completedWithdrawals.length,
+      completedWithdrawalsPaise: completedWithdrawals.reduce((sum, w) => sum + w.amountPaise, 0),
+      agentCommissionsPaise,
+      totalGameStakesPaise,
+      totalPayoutsPaise,
+      totalProtectionPaise,
+      houseProfitLossPaise,
+    };
+  }
+
+  // Handshake request
+  public requestHandshake(params: {
+    type: 'deposit' | 'withdrawal';
+    amount: number;
+    agentId: string;
+    notes?: string;
+    payoutDetails?: { upiId?: string; accountNumber?: string; ifsc?: string };
+  }): { success: boolean; message: string; transactionId?: string } {
+    const agent = this.agents.find((a) => a.id === params.agentId) || this.agents[0];
+    const txId = `HSK-${Date.now()}`;
+    const amountPaise = Math.round(params.amount * 100);
+
+    if (params.type === 'withdrawal') {
+      if (this.currentUser.withdrawableBalancePaise < amountPaise) {
+        return {
+          success: false,
+          message: `Insufficient Withdrawable Balance (₹${(this.currentUser.withdrawableBalancePaise / 100).toLocaleString()} available).`,
+        };
+      }
+      this.currentUser.withdrawableBalancePaise -= amountPaise;
+      this.currentUser.walletBalance = Math.floor(this.currentUser.withdrawableBalancePaise / 100);
+      this.currentUser.mainBalance = Math.floor(
+        (this.currentUser.withdrawableBalancePaise + this.currentUser.bonusBalancePaise) / 100
+      );
     }
 
-    this.masterProfile.mainBalance -= amount;
-    this.masterProfile.walletBalance = this.masterProfile.mainBalance;
-    agent.mainBalance += amount;
-    agent.walletBalance = agent.mainBalance;
+    const newTx: HandshakeTransaction = {
+      id: txId,
+      type: params.type,
+      amount: params.amount,
+      senderId: this.currentUser.id,
+      senderName: this.currentUser.displayName,
+      senderPhone: this.currentUser.phoneNumber,
+      receiverId: agent.id,
+      agentName: agent.displayName,
+      agentPhone: agent.phoneNumber,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      notes: params.notes,
+      payoutDetails: params.payoutDetails,
+    };
 
-    this.history.unshift({
-      id: `act-mtransfer-${Date.now()}`,
-      type: 'deposit',
-      title: `Master Coin Transfer to Agent`,
-      amount,
-      wallet: 'main',
-      status: 'completed',
-      timestamp: new Date().toISOString(),
-      details: `Transferred ₹${amount.toLocaleString()} coins to Agent ${agent.displayName}.`,
-    });
-
+    this.handshakes.unshift(newTx);
     this.notify();
+
     return {
       success: true,
-      message: `Transferred ₹${amount.toLocaleString()} to Agent ${agent.displayName} successfully!`,
+      message: `${params.type === 'deposit' ? 'Deposit' : 'Withdrawal'} handshake request of ₹${params.amount.toLocaleString()} forwarded to Agent ${agent.displayName}.`,
+      transactionId: txId,
     };
   }
 
-  // User Management: Block / Unblock User
+  // Handshake approval
+  public approveHandshake(transactionId: string): { success: boolean; message: string } {
+    const tx = this.handshakes.find((t) => t.id === transactionId);
+    if (!tx) return { success: false, message: 'Transaction not found.' };
+    if (tx.status !== 'pending') return { success: false, message: 'Transaction already processed.' };
+
+    tx.status = 'completed';
+    const player = this.players.find((p) => p.id === tx.senderId) || this.currentUser;
+
+    if (tx.type === 'deposit') {
+      const amountPaise = tx.amount * 100;
+      player.withdrawableBalancePaise += amountPaise;
+      player.walletBalance = Math.floor(player.withdrawableBalancePaise / 100);
+      player.mainBalance = Math.floor((player.withdrawableBalancePaise + player.bonusBalancePaise) / 100);
+
+      this.recordLedgerEntry({
+        userId: player.id,
+        role: 'player',
+        transactionType: 'DEPOSIT_APPROVED',
+        amountPaise,
+        balanceBeforePaise: player.withdrawableBalancePaise - amountPaise,
+        balanceAfterPaise: player.withdrawableBalancePaise,
+        bonusBeforePaise: player.bonusBalancePaise,
+        bonusAfterPaise: player.bonusBalancePaise,
+        referenceId: tx.id,
+        actorId: tx.receiverId,
+        status: 'COMPLETED',
+        description: `Agent ${tx.agentName} verified deposit handshake of ₹${tx.amount.toLocaleString()}.`,
+      });
+    }
+
+    this.notify();
+    return { success: true, message: 'Handshake completed successfully.' };
+  }
+
+  public rejectHandshake(transactionId: string, reason: string): { success: boolean; message: string } {
+    const tx = this.handshakes.find((t) => t.id === transactionId);
+    if (!tx) return { success: false, message: 'Transaction not found.' };
+    if (tx.status !== 'pending') return { success: false, message: 'Transaction already processed.' };
+
+    tx.status = 'rejected';
+    tx.notes = `Rejected by Agent: ${reason}`;
+
+    if (tx.type === 'withdrawal') {
+      const player = this.players.find((p) => p.id === tx.senderId) || this.currentUser;
+      const amountPaise = tx.amount * 100;
+      player.withdrawableBalancePaise += amountPaise;
+      player.walletBalance = Math.floor(player.withdrawableBalancePaise / 100);
+      player.mainBalance = Math.floor((player.withdrawableBalancePaise + player.bonusBalancePaise) / 100);
+    }
+
+    this.notify();
+    return { success: true, message: 'Handshake rejected.' };
+  }
+
   public toggleUserBlockStatus(userId: string): { success: boolean; newStatus: 'active' | 'blocked' } {
     const player = this.players.find((p) => p.id === userId);
     if (player) {

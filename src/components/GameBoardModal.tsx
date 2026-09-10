@@ -303,8 +303,8 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
   }, [selections]);
   const potential90xReward = maxIndividualStake * 90;
 
-  // Single Main Wallet balance display
-  const availableDemoBalance = user.mainBalance;
+  // Withdrawable Balance check for game bidding
+  const availableDemoBalance = user.withdrawableBalancePaise !== undefined ? user.withdrawableBalancePaise / 100 : user.mainBalance;
   const hasInsufficientCredits = totalStake > availableDemoBalance;
 
   // Comprehensive Step 14 Validation
@@ -336,7 +336,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
     }
 
     if (totalStake > availableDemoBalance) {
-      return `Insufficient demo credits in Main Wallet. Required: ₹${totalStake.toLocaleString()}, Available: ₹${availableDemoBalance.toLocaleString()}.`;
+      return `Insufficient Withdrawable Balance. Required: ₹${totalStake.toLocaleString()}, Available: ₹${availableDemoBalance.toLocaleString()}.`;
     }
 
     return null;

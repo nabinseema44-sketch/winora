@@ -1,6 +1,6 @@
 {
   "name": "WINORA",
-  "description": "Mobile-first gaming platform featuring a dark interface, dedicated account money wallet, deposit and withdrawal workflows, and game showcases.",
+  "description": "Fast mobile-first number prediction gaming platform with backend-authoritative real-money INR wallet, manual deposit verification, manual/agent withdrawal, referral tracking, complete game accounting, and Master administration panel.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
