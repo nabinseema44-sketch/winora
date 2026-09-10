@@ -5,6 +5,7 @@ export interface GameResultRecord {
   roundNumber: number;
   gameName: string;
   winningNumber: string;
+  resultColor: 'GREEN' | 'RED';
   declaredBy: string;
   declaredAt: string;
   ruleVersion: string;
@@ -20,13 +21,14 @@ export interface SettlementSummary {
   roundId: string;
   gameId: string;
   winningNumber: string;
-  isGreenNumber: boolean;
+  resultColor: 'GREEN' | 'RED';
   totalEntries: number;
   winningEntries: number;
   losingEntries: number;
   totalStake: number;
   total90xRewards: number;
-  totalGreenProtection: number;
+  totalProtectionRefund: number;
+  totalProtectionRefunds?: number;
   totalDemoRewards: number;
   failedSettlements: number;
   settlementTimestamp: string;
@@ -55,9 +57,22 @@ export interface RoundWithStats {
   status: 'OPEN' | 'FROZEN' | 'PROCESSING' | 'COMPLETED';
   totalBidsPool: number;
   resultNumber?: string | null;
+  resultColor?: 'GREEN' | 'RED' | null;
   entriesCount: number;
   totalStake: number;
   result?: GameResultRecord;
+}
+
+export interface SettlementLiabilityPreview {
+  winningNumber: string;
+  resultColor: 'GREEN' | 'RED';
+  totalStake: number;
+  total90xPayout: number;
+  totalProtectionRefund: number;
+  totalLiability: number;
+  netHousePnL: number;
+  winningBidsCount?: number;
+  matchingColorBidsCount?: number;
 }
 
 class ResultSettlementApiService {
@@ -110,6 +125,29 @@ class ResultSettlementApiService {
   }
 
   /**
+   * Master preview liability for winning number & result color
+   */
+  public async calculateLiability(params: {
+    gameId: string;
+    roundId: string;
+    winningNumber: string;
+    resultColor: 'GREEN' | 'RED';
+  }): Promise<{ success: boolean; liability?: SettlementLiabilityPreview; message?: string }> {
+    try {
+      const res = await fetch('/api/results/calculate-liability', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params),
+      });
+      return await res.json();
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Failed to calculate liability' };
+    }
+  }
+
+  /**
    * Master freeze round helper
    */
   public async freezeRound(params: {
@@ -142,12 +180,13 @@ class ResultSettlementApiService {
   }
 
   /**
-   * Master declare result & execute settlement
+   * Master declare result & execute settlement with Winning Number AND Result Color
    */
   public async declareResult(params: {
     gameId: string;
     roundId: string;
     winningNumber: string;
+    resultColor: 'GREEN' | 'RED';
     actorId: string;
     actorRole: string;
   }): Promise<{
@@ -168,6 +207,7 @@ class ResultSettlementApiService {
           gameId: params.gameId,
           roundId: params.roundId,
           winningNumber: params.winningNumber,
+          resultColor: params.resultColor,
         }),
       });
       const data = await res.json();

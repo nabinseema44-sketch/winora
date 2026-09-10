@@ -260,7 +260,7 @@ export const DualConfirmationHandshakeModal: React.FC<DualConfirmationHandshakeM
                 <div className="mt-2.5 p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-start gap-2">
                   <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
                   <div className="text-xs text-purple-300">
-                    <strong>1st Deposit 50/50 Referral Bonus:</strong> 50% of this first deposit will be credited to your Bonus Wallet and 50% to your referrer's Main Wallet upon agent handshake!
+                    <strong>1st Deposit 50/50 Referral Bonus:</strong> 50% of this first deposit will be credited to your Main Wallet and 50% to your referrer's Main Wallet upon agent handshake!
                   </div>
                 </div>
               )}

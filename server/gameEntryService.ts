@@ -10,6 +10,13 @@ export interface ServerGameRound {
   status: 'OPEN' | 'FROZEN' | 'PROCESSING' | 'COMPLETED';
   totalBidsPool: number;
   resultNumber?: string | null;
+  resultColor?: 'GREEN' | 'RED' | null;
+}
+
+export interface Selection {
+  number: string; // "00" - "99"
+  stake: number;
+  color: 'GREEN' | 'RED';
 }
 
 export interface ServerGameEntry {
@@ -19,26 +26,20 @@ export interface ServerGameEntry {
   gameName: string;
   roundId: string;
   roundNumber: number;
-  selectedNumbers: string[]; // Exact two-digit strings '00' - '99'
-  numbersCount: number;
-  amountPerNumber: number;
+  selections: Selection[];
   totalStake: number;
-  potentialReward: number; // 90x payout per winning number
-  greenProtectionAmount: number; // 80% on green numbers for Hourly Dhamaka
   walletUsed: 'main';
-  status: 'CONFIRMED' | 'WON' | 'LOST' | 'REFUNDED';
+  status: 'CONFIRMED' | 'WON' | 'LOST';
   createdAt: string;
-  idempotencyKey: string;
+  idempotencyKey?: string;
   settledReward?: number;
+  protectionRefund?: number;
+  totalSettlementCredit?: number;
   settledWinningNumber?: string;
+  settledResultColor?: 'GREEN' | 'RED';
   settlementId?: string;
   settledAt?: string;
 }
-
-// Server-controlled Green / Red classification for Hourly Dhamaka
-// Server is authoritative; client does not hardcode numbers
-export const SERVER_GREEN_NUMBERS: string[] = Array.from({ length: 50 }, (_, i) => i.toString().padStart(2, '0'));
-export const SERVER_RED_NUMBERS: string[] = Array.from({ length: 50 }, (_, i) => (i + 50).toString().padStart(2, '0'));
 
 export const SERVER_GAMES_CONFIG = [
   {
@@ -78,11 +79,11 @@ export const SERVER_GAMES_CONFIG = [
     id: 'hourly_dhamaka',
     name: 'Hourly Dhamaka',
     code: 'HD-80G',
-    subtitle: '90× Payout + 80% Green Protection Refund',
+    subtitle: '90× Payout + 80% Protection Refund',
     payoutMultiplier: 90,
     hasGreenRefund: true,
     refundPercentage: 80,
-    description: '50 Green Numbers & 50 Red Numbers. If your Green number does not win, receive an automatic 80% demo credit refund to Main Wallet!',
+    description: 'Place bids with your chosen color (GREEN or RED). Winning number pays 90×, plus an 80% protection refund on all bids matching the declared Result Color!',
     accentColor: 'from-emerald-500 to-teal-500',
     intervalMinutes: 60,
   },
@@ -181,12 +182,12 @@ class GameEntryService {
       gameName: 'Game X',
       roundId: 'round-gx-101',
       roundNumber: 101,
-      selectedNumbers: ['07', '21', '42'],
-      numbersCount: 3,
-      amountPerNumber: 100,
+      selections: [
+        { number: '07', stake: 100, color: 'GREEN' },
+        { number: '21', stake: 100, color: 'RED' },
+        { number: '42', stake: 100, color: 'GREEN' },
+      ],
       totalStake: 300,
-      potentialReward: 9000,
-      greenProtectionAmount: 0,
       walletUsed: 'main',
       status: 'CONFIRMED',
       createdAt: new Date(Date.now() - 10 * 60000).toISOString(),
@@ -200,12 +201,13 @@ class GameEntryService {
       gameName: 'Hourly Dhamaka',
       roundId: 'round-hd-412',
       roundNumber: 412,
-      selectedNumbers: ['00', '15', '24', '33'],
-      numbersCount: 4,
-      amountPerNumber: 150,
+      selections: [
+        { number: '00', stake: 150, color: 'GREEN' },
+        { number: '15', stake: 150, color: 'RED' },
+        { number: '24', stake: 150, color: 'GREEN' },
+        { number: '33', stake: 150, color: 'GREEN' },
+      ],
       totalStake: 600,
-      potentialReward: 13500,
-      greenProtectionAmount: 480, // 4 green numbers * 150 * 0.8
       walletUsed: 'main',
       status: 'CONFIRMED',
       createdAt: new Date(Date.now() - 25 * 60000).toISOString(),
@@ -233,12 +235,6 @@ class GameEntryService {
       games: SERVER_GAMES_CONFIG,
       rounds: roundsList,
       serverTime: new Date().toISOString(),
-      colorClassification: {
-        gameId: 'hourly_dhamaka',
-        greenNumbers: SERVER_GREEN_NUMBERS,
-        redNumbers: SERVER_RED_NUMBERS,
-        greenRefundPercentage: 80,
-      },
     };
   }
 
@@ -260,16 +256,16 @@ class GameEntryService {
   }
 
   /**
-   * Authoritative Step 11 Game Entry Submission - Single Main Wallet
+   * Authoritative Step 13 Game Entry Submission - Single Main Wallet
+   * Validates selections array: number (00-99), stake (min 1, max 10000), color (GREEN | RED).
+   * Server calculates totalStake = sum of selection stakes.
    */
   public submitEntry(params: {
     userId: string;
     gameId: string;
     roundId: string;
-    gameModeId?: 'main';
-    selectedNumbers: string[];
-    amountPerNumber: number;
-    idempotencyKey: string;
+    selections: Selection[];
+    idempotencyKey?: string;
   }): {
     success: boolean;
     error?: string;
@@ -277,7 +273,7 @@ class GameEntryService {
     entry?: ServerGameEntry;
     remainingBalance?: { main: number };
   } {
-    const { userId, gameId, roundId, selectedNumbers, amountPerNumber, idempotencyKey } = params;
+    const { userId, gameId, roundId, selections, idempotencyKey } = params;
 
     // 1. Idempotency Check
     if (idempotencyKey && this.idempotencyStore.has(idempotencyKey)) {
@@ -311,7 +307,6 @@ class GameEntryService {
       round.status === 'COMPLETED' ||
       now >= freezeTimestamp
     ) {
-      // Auto-update server round status if time passed
       round.status = 'FROZEN';
       return {
         success: false,
@@ -321,21 +316,33 @@ class GameEntryService {
     }
 
     // 4. Validate Selection Count (1 to 37 numbers maximum)
-    if (!Array.isArray(selectedNumbers) || selectedNumbers.length === 0) {
+    if (!Array.isArray(selections) || selections.length === 0) {
       return { success: false, errorCode: 'EMPTY_SELECTION', error: 'Please select at least 1 number.' };
     }
 
-    if (selectedNumbers.length > 37) {
+    if (selections.length > 37) {
       return {
         success: false,
         errorCode: 'LIMIT_EXCEEDED',
-        error: `Selection exceeds the maximum limit of 37 numbers per round (Received: ${selectedNumbers.length}).`,
+        error: `Selection exceeds the maximum limit of 37 numbers per round (Received: ${selections.length}).`,
       };
     }
 
-    // 5. Validate Number Formats & Deduplicate Check
-    const seen = new Set<string>();
-    for (const numStr of selectedNumbers) {
+    // 5. Validate Each Selection (number format, duplicate number check, stake, color)
+    const seenNumbers = new Set<string>();
+    let calculatedTotalStake = 0;
+
+    for (const sel of selections) {
+      if (!sel || typeof sel !== 'object') {
+        return {
+          success: false,
+          errorCode: 'INVALID_SELECTION',
+          error: 'Malformed selection object received.',
+        };
+      }
+
+      const { number: numStr, stake, color } = sel;
+
       if (typeof numStr !== 'string' || !/^\d{2}$/.test(numStr)) {
         return {
           success: false,
@@ -351,33 +358,37 @@ class GameEntryService {
           error: `Number out of valid range: "${numStr}". Allowed range is 00 to 99.`,
         };
       }
-      if (seen.has(numStr)) {
+      if (seenNumbers.has(numStr)) {
         return {
           success: false,
           errorCode: 'DUPLICATE_NUMBER',
           error: `Duplicate number "${numStr}" detected in selection.`,
         };
       }
-      seen.add(numStr);
+      seenNumbers.add(numStr);
+
+      if (typeof stake !== 'number' || isNaN(stake) || stake < 1 || stake > 10000) {
+        return {
+          success: false,
+          errorCode: 'INVALID_AMOUNT',
+          error: `Stake for number ${numStr} must be between 1 and 10,000 demo credits (Received: ${stake}).`,
+        };
+      }
+
+      if (color !== 'GREEN' && color !== 'RED') {
+        return {
+          success: false,
+          errorCode: 'INVALID_COLOR',
+          error: `Color for number ${numStr} must be either GREEN or RED (Received: ${color}).`,
+        };
+      }
+
+      calculatedTotalStake += stake;
     }
 
-    // 6. Validate Stake Amount
-    if (
-      typeof amountPerNumber !== 'number' ||
-      isNaN(amountPerNumber) ||
-      amountPerNumber < 10 ||
-      amountPerNumber > 10000
-    ) {
-      return {
-        success: false,
-        errorCode: 'INVALID_AMOUNT',
-        error: 'Stake per number must be between 10 and 10,000 demo credits.',
-      };
-    }
+    const totalStake = calculatedTotalStake;
 
-    const totalStake = amountPerNumber * selectedNumbers.length;
-
-    // 7. Server-Authoritative Balance Check (Strictly Main Wallet)
+    // 6. Server-Authoritative Balance Check (Strictly Main Wallet)
     const balances = this.getUserBalance(userId);
 
     if (balances.main < totalStake) {
@@ -388,22 +399,14 @@ class GameEntryService {
       };
     }
 
-    // 8. Deduct balance from Main Wallet
+    // 7. Deduct balance from Main Wallet
     balances.main -= totalStake;
     this.userDemoBalances.set(userId, balances);
 
-    // 9. Update Round Pool
+    // 8. Update Round Pool
     round.totalBidsPool += totalStake;
 
-    // 10. Calculate Potential Returns
-    const potentialReward = amountPerNumber * gameConfig.payoutMultiplier;
-    let greenProtectionAmount = 0;
-    if (gameConfig.hasGreenRefund) {
-      const greenCount = selectedNumbers.filter((n) => SERVER_GREEN_NUMBERS.includes(n)).length;
-      greenProtectionAmount = Math.round(greenCount * amountPerNumber * 0.8);
-    }
-
-    // 11. Create Immutable Entry Record
+    // 9. Create Immutable Entry Record
     const entryId = `ENTRY-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
     const newEntry: ServerGameEntry = {
       id: entryId,
@@ -412,12 +415,8 @@ class GameEntryService {
       gameName: gameConfig.name,
       roundId: round.id,
       roundNumber: round.roundNumber,
-      selectedNumbers: [...selectedNumbers].sort((a, b) => a.localeCompare(b)),
-      numbersCount: selectedNumbers.length,
-      amountPerNumber,
+      selections: [...selections].sort((a, b) => a.number.localeCompare(b.number)),
       totalStake,
-      potentialReward,
-      greenProtectionAmount,
       walletUsed: 'main',
       status: 'CONFIRMED',
       createdAt: new Date().toISOString(),
@@ -527,6 +526,7 @@ class GameEntryService {
       status: 'OPEN',
       totalBidsPool: 0,
       resultNumber: null,
+      resultColor: null,
     };
 
     this.rounds.set(gameId, newRound);

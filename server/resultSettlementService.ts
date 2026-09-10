@@ -4,7 +4,6 @@ import {
   ServerGameRound,
   ServerGameEntry,
   SERVER_GAMES_CONFIG,
-  SERVER_GREEN_NUMBERS,
 } from './gameEntryService.ts';
 
 export interface GameResultRecord {
@@ -14,6 +13,7 @@ export interface GameResultRecord {
   roundNumber: number;
   gameName: string;
   winningNumber: string; // Exact two-digit string '00'–'99'
+  resultColor: 'GREEN' | 'RED';
   declaredBy: string;
   declaredAt: string;
   ruleVersion: string;
@@ -29,13 +29,13 @@ export interface SettlementSummary {
   roundId: string;
   gameId: string;
   winningNumber: string;
-  isGreenNumber: boolean;
+  resultColor: 'GREEN' | 'RED';
   totalEntries: number;
   winningEntries: number;
   losingEntries: number;
   totalStake: number;
   total90xRewards: number;
-  totalGreenProtection: number;
+  totalProtectionRefund: number;
   totalDemoRewards: number;
   failedSettlements: number;
   settlementTimestamp: string;
@@ -48,7 +48,7 @@ export interface WalletRewardTransaction {
   entryId: string;
   resultId: string;
   roundId: string;
-  rewardType: '90x_win' | '90x_win_green_protection';
+  rewardType: 'GAME_WIN' | 'HOURLY_PROTECTION_REFUND' | '90x_win' | 'protection_refund' | '90x_win_protection_refund';
   amount: number;
   createdAt: string;
 }
@@ -81,7 +81,7 @@ class ResultSettlementService {
    */
   private seedSampleResults() {
     const sampleRoundId = 'round-gx-100';
-    const sampleResultId = 'RES-GX100-42';
+    const sampleResultId = 'RES-GX100-42-G';
     const sampleSettleId = 'SETTLE-INIT-9001';
 
     const summary: SettlementSummary = {
@@ -90,13 +90,13 @@ class ResultSettlementService {
       roundId: sampleRoundId,
       gameId: 'game_x',
       winningNumber: '42',
-      isGreenNumber: true,
+      resultColor: 'GREEN',
       totalEntries: 18,
       winningEntries: 2,
       losingEntries: 16,
       totalStake: 3600,
       total90xRewards: 18000,
-      totalGreenProtection: 0,
+      totalProtectionRefund: 0,
       totalDemoRewards: 18000,
       failedSettlements: 0,
       settlementTimestamp: new Date(Date.now() - 3600000).toISOString(),
@@ -110,6 +110,7 @@ class ResultSettlementService {
       roundNumber: 100,
       gameName: 'Game X',
       winningNumber: '42',
+      resultColor: 'GREEN',
       declaredBy: 'master-admin',
       declaredAt: new Date(Date.now() - 3600000).toISOString(),
       ruleVersion: '1.0',
@@ -129,7 +130,7 @@ class ResultSettlementService {
       roundId: sampleRoundId,
       resultId: sampleResultId,
       settlementId: sampleSettleId,
-      details: { winningNumber: '42' },
+      details: { winningNumber: '42', resultColor: 'GREEN' },
     });
 
     this.logAudit({
@@ -184,6 +185,71 @@ class ResultSettlementService {
   }
 
   /**
+   * Calculate potential settlement liabilities before Master confirms declaration
+   */
+  public calculateSettlementLiability(params: {
+    gameId: string;
+    roundId: string;
+    winningNumber: string;
+    resultColor: 'GREEN' | 'RED';
+  }): {
+    winningNumber: string;
+    resultColor: 'GREEN' | 'RED';
+    totalEntries: number;
+    totalStake: number;
+    total90xPayout: number;
+    totalProtectionRefund: number;
+    totalLiability: number;
+    netHousePnL: number;
+    winningBidsCount: number;
+    matchingColorBidsCount: number;
+  } {
+    const { gameId, roundId, winningNumber, resultColor } = params;
+    const gameConfig = SERVER_GAMES_CONFIG.find((g) => g.id === gameId);
+    const roundEntries = serverGameEntryService.getEntriesForRound(roundId);
+
+    const isHourlyDhamaka = gameId === 'hourly_dhamaka' || Boolean(gameConfig?.hasGreenRefund);
+
+    let totalStake = 0;
+    let potential90xLiability = 0;
+    let protectionRefundLiability = 0;
+    let winningBidsCount = 0;
+    let matchingColorBidsCount = 0;
+
+    for (const entry of roundEntries) {
+      totalStake += entry.totalStake;
+      for (const sel of entry.selections) {
+        if (sel.number === winningNumber) {
+          potential90xLiability += sel.stake * (gameConfig?.payoutMultiplier || 90);
+          winningBidsCount++;
+        }
+        // Task 6 & 8: Protection liability applies ONLY to Hourly Dhamaka, exactly 0 for Game X/Y/Z
+        if (isHourlyDhamaka && sel.color === resultColor) {
+          protectionRefundLiability += Number((sel.stake * 0.8).toFixed(2));
+          matchingColorBidsCount++;
+        }
+      }
+    }
+
+    protectionRefundLiability = Number(protectionRefundLiability.toFixed(2));
+    const totalLiability = Number((potential90xLiability + protectionRefundLiability).toFixed(2));
+    const netHousePnL = Number((totalStake - totalLiability).toFixed(2));
+
+    return {
+      winningNumber,
+      resultColor,
+      totalEntries: roundEntries.length,
+      totalStake,
+      total90xPayout: potential90xLiability,
+      totalProtectionRefund: protectionRefundLiability,
+      totalLiability,
+      netHousePnL,
+      winningBidsCount,
+      matchingColorBidsCount,
+    };
+  }
+
+  /**
    * Master Manual Round Freeze (to facilitate immediate testing of open rounds)
    */
   public freezeRound(params: {
@@ -229,6 +295,8 @@ class ResultSettlementService {
 
   /**
    * Master Result Declaration and Authoritative Settlement Engine
+   * Validates Master-declared Winning Number (00-99) and Result Color (GREEN/RED).
+   * Executes 90x payout and 80% color protection refund to demo Main Wallet.
    */
   public declareResultAndSettle(params: {
     actorRole: string;
@@ -236,6 +304,7 @@ class ResultSettlementService {
     gameId: string;
     roundId: string;
     winningNumber: string;
+    resultColor: 'GREEN' | 'RED';
     idempotencyKey?: string;
   }): {
     success: boolean;
@@ -244,7 +313,7 @@ class ResultSettlementService {
     result?: GameResultRecord;
     summary?: SettlementSummary;
   } {
-    const { actorRole, actorId, gameId, roundId, winningNumber, idempotencyKey } = params;
+    const { actorRole, actorId, gameId, roundId, winningNumber, resultColor, idempotencyKey } = params;
 
     // 1. Authoritative Role Verification: Master / Admin only
     if (actorRole !== 'master' && actorRole !== 'admin') {
@@ -266,11 +335,12 @@ class ResultSettlementService {
     }
 
     // 3. Double-Settlement & Idempotency Check:
-    // If this round has already been declared and settled, DO NOT pay twice!
     const existingResult = this.resultsByRound.get(roundId);
     if (existingResult && existingResult.status === 'COMPLETED') {
       return {
-        success: true,
+        success: false,
+        errorCode: 'ROUND_ALREADY_SETTLED',
+        error: `Round "${roundId}" has already been declared and settled (Winning Number: ${existingResult.winningNumber}, Color: ${existingResult.resultColor}). Duplicate settlement rejected.`,
         result: existingResult,
         summary: existingResult.summary,
       };
@@ -287,8 +357,6 @@ class ResultSettlementService {
     }
 
     // 5. Round Lifecycle State Check:
-    // Only a FROZEN round may enter result processing!
-    // Check both explicit status and server freeze deadline
     const now = Date.now();
     const freezeTimestamp = new Date(round.freezeTime).getTime();
     if (round.status === 'OPEN' && now >= freezeTimestamp) {
@@ -310,7 +378,6 @@ class ResultSettlementService {
     }
 
     // 6. Validate Winning Number
-    // Must be exact two-digit string '00' to '99'
     if (typeof winningNumber !== 'string' || !/^\d{2}$/.test(winningNumber)) {
       return {
         success: false,
@@ -328,14 +395,22 @@ class ResultSettlementService {
       };
     }
 
-    // 7. Begin Settlement Phase: Round transitions to PROCESSING
+    // 7. Validate Result Color (GREEN or RED)
+    if (resultColor !== 'GREEN' && resultColor !== 'RED') {
+      return {
+        success: false,
+        errorCode: 'INVALID_RESULT_COLOR',
+        error: `Invalid result color: "${resultColor}". Master must declare either GREEN or RED.`,
+      };
+    }
+
+    // 8. Begin Settlement Phase: Round transitions to PROCESSING
     round.status = 'PROCESSING';
 
     const settlementId = `SETTLE-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-    const resultId = `RES-${gameConfig.code.replace(/[^a-zA-Z0-9]/g, '')}-${round.roundNumber}-${winningNumber}`;
+    const resultId = `RES-${gameConfig.code.replace(/[^a-zA-Z0-9]/g, '')}-${round.roundNumber}-${winningNumber}-${resultColor[0]}`;
     const declaredAt = new Date().toISOString();
 
-    // Check if this settlement ID was somehow already processed
     if (this.completedSettlementIds.has(settlementId)) {
       return {
         success: false,
@@ -355,75 +430,98 @@ class ResultSettlementService {
         gameId,
         gameName: gameConfig.name,
         winningNumber,
+        resultColor,
       },
     });
 
     try {
-      // 8. Retrieve All Eligible Confirmed Entries for this Round
+      // 9. Retrieve All Eligible Confirmed Entries for this Round
       const roundEntries = serverGameEntryService.getEntriesForRound(roundId);
-      const isGreen = SERVER_GREEN_NUMBERS.includes(winningNumber);
 
       let totalStake = 0;
       let total90xRewards = 0;
-      let totalGreenProtection = 0;
+      let totalProtectionRefund = 0;
       let totalDemoRewards = 0;
       let winningCount = 0;
       let losingCount = 0;
       const winningEntryIds: string[] = [];
 
+      const isHourlyDhamaka = gameId === 'hourly_dhamaka' || Boolean(gameConfig.hasGreenRefund);
+
       for (const entry of roundEntries) {
         totalStake += entry.totalStake;
 
-        // Determine if entry selected the winning number
-        const isWinner = entry.selectedNumbers.includes(winningNumber);
+        let entryBase90x = 0;
+        let entryProtectionRefund = 0;
 
-        if (isWinner) {
-          winningCount++;
-          winningEntryIds.push(entry.id);
-
-          // Calculate reward based on winning number stake:
-          // In WINORA, winningStake = entry.amountPerNumber (the stake placed on that number)
-          const winningStake = entry.amountPerNumber;
-          const base90x = winningStake * gameConfig.payoutMultiplier; // 90x
-
-          // Hourly Dhamaka Green Protection Rule:
-          // If Hourly Dhamaka and the winning number is GREEN:
-          // additional Green Protection = winningStake * 80%
-          let greenProtection = 0;
-          if (gameConfig.hasGreenRefund && isGreen) {
-            greenProtection = Math.round(winningStake * 0.8);
+        for (const sel of entry.selections) {
+          // Task 6: 90x payout if selection matches winning number
+          if (sel.number === winningNumber) {
+            entryBase90x += sel.stake * gameConfig.payoutMultiplier;
           }
 
-          const entryTotalReward = base90x + greenProtection;
-          total90xRewards += base90x;
-          totalGreenProtection += greenProtection;
-          totalDemoRewards += entryTotalReward;
+          // Task 7: 80% protection refund ONLY for Hourly Dhamaka if selection color matches declared resultColor
+          // Task 6: For Game X, Y, Z, protection refund is strictly ₹0
+          if (isHourlyDhamaka && sel.color === resultColor) {
+            entryProtectionRefund += Number((sel.stake * 0.8).toFixed(2));
+          }
+        }
+
+        entryProtectionRefund = Number(entryProtectionRefund.toFixed(2));
+        const totalEntryCredit = Number((entryBase90x + entryProtectionRefund).toFixed(2));
+        total90xRewards += entryBase90x;
+        totalProtectionRefund = Number((totalProtectionRefund + entryProtectionRefund).toFixed(2));
+        totalDemoRewards = Number((totalDemoRewards + totalEntryCredit).toFixed(2));
+
+        if (totalEntryCredit > 0) {
+          winningCount++;
+          winningEntryIds.push(entry.id);
 
           // Update entry record
           serverGameEntryService.updateEntry(entry.id, {
             status: 'WON',
-            settledReward: entryTotalReward,
+            settledReward: entryBase90x,
+            protectionRefund: entryProtectionRefund,
+            totalSettlementCredit: totalEntryCredit,
             settledWinningNumber: winningNumber,
+            settledResultColor: resultColor,
             settlementId,
             settledAt: declaredAt,
           });
 
-          // Atomically Credit Demo Main Wallet via authoritative wallet service
-          serverGameEntryService.creditUserDemoReward(entry.userId, entryTotalReward);
+          // Atomically Credit Demo Main Wallet (Task 11: One Wallet only)
+          serverGameEntryService.creditUserDemoReward(entry.userId, totalEntryCredit);
 
-          // Create Immutable Wallet Ledger Transaction
-          const txId = `TX-WIN-${settlementId}-${entry.id}`;
-          const rewardTx: WalletRewardTransaction = {
-            transactionId: txId,
-            userId: entry.userId,
-            entryId: entry.id,
-            resultId,
-            roundId,
-            rewardType: greenProtection > 0 ? '90x_win_green_protection' : '90x_win',
-            amount: entryTotalReward,
-            createdAt: declaredAt,
-          };
-          this.walletRewardLedger.push(rewardTx);
+          // Task 10: Idempotent immutable ledger records with GAME_WIN and HOURLY_PROTECTION_REFUND
+          if (entryBase90x > 0) {
+            const winTxId = `TX-WIN-${settlementId}-${entry.id}`;
+            const winTx: WalletRewardTransaction = {
+              transactionId: winTxId,
+              userId: entry.userId,
+              entryId: entry.id,
+              resultId,
+              roundId,
+              rewardType: 'GAME_WIN',
+              amount: entryBase90x,
+              createdAt: declaredAt,
+            };
+            this.walletRewardLedger.push(winTx);
+          }
+
+          if (entryProtectionRefund > 0) {
+            const refTxId = `TX-PROT-${settlementId}-${entry.id}`;
+            const refTx: WalletRewardTransaction = {
+              transactionId: refTxId,
+              userId: entry.userId,
+              entryId: entry.id,
+              resultId,
+              roundId,
+              rewardType: 'HOURLY_PROTECTION_REFUND',
+              amount: entryProtectionRefund,
+              createdAt: declaredAt,
+            };
+            this.walletRewardLedger.push(refTx);
+          }
 
           // Audit Log: REWARD_SETTLED
           this.logAudit({
@@ -435,52 +533,55 @@ class ResultSettlementService {
             entryReference: entry.id,
             details: {
               userId: entry.userId,
-              winningStake,
-              base90x,
-              greenProtection,
-              totalCredited: entryTotalReward,
-              walletTxId: txId,
+              base90x: entryBase90x,
+              protectionRefund: entryProtectionRefund,
+              totalCredited: totalEntryCredit,
+              winningNumber,
+              resultColor,
             },
           });
         } else {
-          // Losing entry receives no reward.
-          // Original stake remains represented by existing game-entry wallet transaction.
+          // Losing entry
           losingCount++;
           serverGameEntryService.updateEntry(entry.id, {
             status: 'LOST',
             settledReward: 0,
+            protectionRefund: 0,
+            totalSettlementCredit: 0,
             settledWinningNumber: winningNumber,
+            settledResultColor: resultColor,
             settlementId,
             settledAt: declaredAt,
           });
         }
       }
 
-      // 9. Generate Settlement Summary
+      // 10. Generate Settlement Summary
       const summary: SettlementSummary = {
         settlementId,
         resultId,
         roundId,
         gameId,
         winningNumber,
-        isGreenNumber: isGreen,
+        resultColor,
         totalEntries: roundEntries.length,
         winningEntries: winningCount,
         losingEntries: losingCount,
         totalStake,
         total90xRewards,
-        totalGreenProtection,
-        totalDemoRewards,
+        totalProtectionRefund: Number(totalProtectionRefund.toFixed(2)),
+        totalDemoRewards: Number(totalDemoRewards.toFixed(2)),
         failedSettlements: 0,
         settlementTimestamp: declaredAt,
         winningEntryIds,
       };
 
-      // 10. Complete Round Lifecycle: PROCESSING -> COMPLETED
+      // 11. Complete Round Lifecycle: PROCESSING -> COMPLETED
       round.status = 'COMPLETED';
       round.resultNumber = winningNumber;
+      round.resultColor = resultColor;
 
-      // 11. Create Immutable Result Record
+      // 12. Create Immutable Result Record
       const resultRecord: GameResultRecord = {
         resultId,
         gameId,
@@ -488,9 +589,10 @@ class ResultSettlementService {
         roundNumber: round.roundNumber,
         gameName: gameConfig.name,
         winningNumber,
+        resultColor,
         declaredBy: actorId,
         declaredAt,
-        ruleVersion: '1.0',
+        ruleVersion: '2.0',
         status: 'COMPLETED',
         settlementId,
         createdAt: declaredAt,
@@ -510,8 +612,6 @@ class ResultSettlementService {
         summary,
       };
     } catch (err: unknown) {
-      // If settlement fails, round remains in PROCESSING state.
-      // Never mark a failed or partially settled round as COMPLETED!
       const errorMsg = err instanceof Error ? err.message : String(err);
       this.logAudit({
         event: 'SETTLEMENT_FAILED',

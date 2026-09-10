@@ -334,18 +334,28 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
                     </div>
                   </div>
 
-                  {/* Selected Numbers Chips */}
+                  {/* Selections Chips */}
                   <div>
                     <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-1">
-                      Numbers ({entry.numbersCount} selections):
+                      Selections ({entry.selections?.length || 0}):
                     </span>
-                    <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-                      {entry.selectedNumbers.map((numStr) => (
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                      {(entry.selections || []).map((s, idx) => (
                         <span
-                          key={numStr}
-                          className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-zinc-900 text-zinc-200 border border-zinc-800"
+                          key={`${s.number}-${idx}`}
+                          className={`font-mono text-xs font-bold px-2 py-0.5 rounded border flex items-center gap-1.5 ${
+                            s.color === 'GREEN'
+                              ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
+                              : 'bg-rose-950/40 text-rose-300 border-rose-500/30'
+                          }`}
                         >
-                          {numStr}
+                          <span>#{s.number}</span>
+                          <span className="text-[10px] opacity-75">₹{s.stake}</span>
+                          <span className={`text-[9px] px-1 rounded font-black ${
+                            s.color === 'GREEN' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                          }`}>
+                            {s.color}
+                          </span>
                         </span>
                       ))}
                     </div>
@@ -358,19 +368,21 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
                       <strong className="text-zinc-100 font-mono">
                         ₹{entry.totalStake.toLocaleString()} demo credits
                       </strong>{' '}
-                      (₹{entry.amountPerNumber} / number)
+                      ({entry.selections?.length || 0} selection{(entry.selections?.length || 0) === 1 ? '' : 's'})
                     </div>
 
                     <div className="flex items-center gap-3">
-                      <div className="text-emerald-400">
-                        90× Potential:{' '}
-                        <strong className="font-mono">₹{entry.potentialReward.toLocaleString()}</strong>
-                      </div>
-                      {entry.greenProtectionAmount > 0 && (
+                      {entry.settledReward !== undefined && entry.settledReward > 0 && (
+                        <div className="text-emerald-400">
+                          90× Win:{' '}
+                          <strong className="font-mono">₹{entry.settledReward.toLocaleString()}</strong>
+                        </div>
+                      )}
+                      {entry.protectionRefund !== undefined && entry.protectionRefund > 0 && (
                         <div className="text-cyan-300">
-                          Green Protection:{' '}
+                          Protection Refund:{' '}
                           <strong className="font-mono">
-                            ₹{entry.greenProtectionAmount.toLocaleString()}
+                            ₹{entry.protectionRefund.toLocaleString()}
                           </strong>
                         </div>
                       )}

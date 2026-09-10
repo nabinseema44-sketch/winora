@@ -161,23 +161,18 @@ BEGIN
         SET main_balance = main_balance + NEW.amount, updated_at = NOW()
         WHERE user_id = NEW.sender_id;
 
-        -- 2. REFERRAL TRIGGER: 50% Main / 50% Bonus on 1st Deposit
+        -- 2. REFERRAL TRIGGER: 50% Main Wallet Reward to Referrer on 1st Deposit
         IF player_rec.has_made_first_deposit = FALSE AND player_rec.referrer_id IS NOT NULL THEN
             half_amount := ROUND((NEW.amount * 0.50), 2);
 
-            -- Credit 50% to New Player Bonus Wallet
-            UPDATE public.wallets
-            SET bonus_balance = bonus_balance + half_amount, updated_at = NOW()
-            WHERE user_id = NEW.sender_id;
-
-            -- Credit 50% to Referrer Main Wallet
+            -- Credit 50% directly to Referrer Main Wallet
             UPDATE public.wallets
             SET main_balance = main_balance + half_amount, updated_at = NOW()
             WHERE user_id = player_rec.referrer_id;
 
-            -- Debit total bonus from Master
+            -- Debit referral reward from Master
             UPDATE public.wallets
-            SET main_balance = main_balance - (half_amount * 2), updated_at = NOW()
+            SET main_balance = main_balance - half_amount, updated_at = NOW()
             WHERE user_id = master_rec.id;
 
             -- Mark player first deposit done

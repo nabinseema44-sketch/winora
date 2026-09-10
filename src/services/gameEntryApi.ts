@@ -1,7 +1,8 @@
 /**
- * WINORA Step 11 & 12 Game Entry API Service
- * Handles server-authoritative round configuration, 00-99 color classifications,
- * idempotent game entry submission, and entry history retrieval.
+ * WINORA Step 13 Game Entry API Service
+ * Handles server-authoritative round configuration,
+ * per-selection stakes & chosen colors, idempotent entry submission,
+ * and entry history retrieval.
  */
 
 export interface ServerRoundInfo {
@@ -14,13 +15,7 @@ export interface ServerRoundInfo {
   status: 'OPEN' | 'FROZEN' | 'PROCESSING' | 'COMPLETED';
   totalBidsPool: number;
   resultNumber?: string | null;
-}
-
-export interface ServerColorClassification {
-  gameId: string;
-  greenNumbers: string[];
-  redNumbers: string[];
-  greenRefundPercentage: number;
+  resultColor?: 'GREEN' | 'RED' | null;
 }
 
 export interface GamesConfigResponse {
@@ -28,15 +23,20 @@ export interface GamesConfigResponse {
   games: any[];
   rounds: Record<string, ServerRoundInfo>;
   serverTime: string;
-  colorClassification: ServerColorClassification;
 }
+
+export interface SelectionPayload {
+  number: string; // '00' to '99'
+  stake: number;  // per-number stake
+  color: 'GREEN' | 'RED';
+}
+
+export type PlayerNumberSelection = SelectionPayload;
 
 export interface SubmitGameEntryPayload {
   gameId: string;
   roundId: string;
-  gameModeId?: 'main';
-  selectedNumbers: string[]; // string '00' to '99'
-  amountPerNumber: number;
+  selections: SelectionPayload[];
   idempotencyKey: string;
 }
 
@@ -47,16 +47,19 @@ export interface ConfirmedGameEntry {
   gameName: string;
   roundId: string;
   roundNumber: number;
-  selectedNumbers: string[];
-  numbersCount: number;
-  amountPerNumber: number;
+  selections: SelectionPayload[];
   totalStake: number;
-  potentialReward: number;
-  greenProtectionAmount: number;
   walletUsed: 'main';
-  status: 'CONFIRMED' | 'WON' | 'LOST' | 'REFUNDED';
+  status: 'CONFIRMED' | 'WON' | 'LOST';
   createdAt: string;
-  idempotencyKey: string;
+  idempotencyKey?: string;
+  settledReward?: number;
+  protectionRefund?: number;
+  totalSettlementCredit?: number;
+  settledWinningNumber?: string;
+  settledResultColor?: 'GREEN' | 'RED';
+  settlementId?: string;
+  settledAt?: string;
 }
 
 export interface SubmitEntryResponse {
@@ -69,7 +72,7 @@ export interface SubmitEntryResponse {
 
 export const gameEntryApi = {
   /**
-   * Fetch server-authoritative round statuses and color classification
+   * Fetch server-authoritative round statuses
    */
   async fetchGamesConfig(): Promise<GamesConfigResponse | null> {
     try {
@@ -102,9 +105,9 @@ export const gameEntryApi = {
   },
 
   /**
-   * Submit secure game entry to Step 11 API
-   * Strictly avoids sending client-side balance, user identity as authoritative,
-   * or client-calculated rewards.
+   * Submit secure game entry to Step 13 API
+   * Client sends selections array: [{ number, stake, color }].
+   * Server calculates authoritative totalStake.
    */
   async submitEntry(
     userId: string,
@@ -120,9 +123,7 @@ export const gameEntryApi = {
         body: JSON.stringify({
           gameId: payload.gameId,
           roundId: payload.roundId,
-          gameModeId: payload.gameModeId,
-          selectedNumbers: payload.selectedNumbers,
-          amountPerNumber: payload.amountPerNumber,
+          selections: payload.selections,
           idempotencyKey: payload.idempotencyKey,
         }),
       });

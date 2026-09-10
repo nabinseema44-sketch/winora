@@ -69,7 +69,6 @@ export interface UserProfile {
   phoneNumber: string;
   walletBalance: number; // Main Wallet demo credit balance
   mainBalance: number;   // Main Wallet demo credits
-  bonusBalance?: number; // Optional Bonus Wallet demo credits
   currency: CurrencyConfig;
   avatar: string;
   tier: 'Bronze' | 'Silver' | 'Gold' | 'Diamond';
@@ -94,13 +93,19 @@ export interface UserProfile {
 
 export type WinoraGameId = 'game_x' | 'game_y' | 'game_z' | 'hourly_dhamaka';
 
+export interface SelectionItem {
+  number: string; // '00' to '99'
+  stake: number;
+  color: 'GREEN' | 'RED';
+}
+
 export interface WinoraGameConfig {
   id: WinoraGameId;
   name: string;
   code: string;
   subtitle: string;
   payoutMultiplier: number; // 90x
-  hasGreenRefund: boolean;  // true for Hourly Dhamaka (80% Green refund)
+  hasGreenRefund: boolean;  // true for Hourly Dhamaka (80% protection refund)
   refundPercentage?: number; // 80%
   description: string;
   accentColor: string;
@@ -115,9 +120,16 @@ export interface GameRound {
   freezeTime: string;  // ISO timestamp (15 minutes prior to declareTime)
   declareTime: string; // ISO timestamp
   status: 'open' | 'frozen' | 'completed';
-  resultNumber?: number | null;
+  resultNumber?: string | null;
+  resultColor?: 'GREEN' | 'RED' | null;
   totalBidsPool: number;
   declaredAt?: string;
+}
+
+export interface PlayerNumberSelection {
+  number: string; // '00' to '99'
+  stake: number;  // individual stake per number
+  color: 'GREEN' | 'RED'; // explicitly chosen color
 }
 
 export interface BidRecord {
@@ -130,7 +142,8 @@ export interface BidRecord {
   number: number; // 0 to 99
   amount: number;
   walletUsed: 'main';
-  isGreen: boolean; // For Hourly Dhamaka: 50 green (00-49), 50 red (50-99)
+  color?: 'GREEN' | 'RED';
+  isGreen?: boolean;
   status: 'placed' | 'won' | 'lost' | 'refunded';
   payoutAmount: number;
   refundAmount: number;

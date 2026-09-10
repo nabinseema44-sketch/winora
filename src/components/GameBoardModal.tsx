@@ -7,24 +7,23 @@ import {
   Sparkles,
   ShieldCheck,
   CheckCircle2,
-  HelpCircle,
   TrendingUp,
   RotateCcw,
   ArrowRight,
-  ListFilter,
   Check,
   Info,
-  Layers,
   FileText,
-  ChevronRight,
   RefreshCw,
+  Plus,
+  Minus,
+  Trash2,
 } from 'lucide-react';
 import { WinoraGameConfig, GameRound, UserProfile } from '../types.ts';
 import {
   gameEntryApi,
   ServerRoundInfo,
-  ServerColorClassification,
   ConfirmedGameEntry,
+  SelectionPayload,
 } from '../services/gameEntryApi.ts';
 import { winoraEngine } from '../services/winoraEngine.ts';
 
@@ -49,22 +48,21 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
   // Current active view
   const [activeView, setActiveView] = useState<ModalView>('board');
 
-  // Selected numbers state: store as array of exact 2-digit strings (e.g. '00', '07', '99')
-  const [selectedNumbers, setSelectedNumbers] = useState<string[]>([]);
+  // Selections array: each item has number ("00" to "99"), individual stake, and chosen color ('GREEN' | 'RED')
+  const [selections, setSelections] = useState<SelectionPayload[]>([]);
 
-  // Stake per selected number (default ₹50 demo credits)
-  const [stakePerNumber, setStakePerNumber] = useState<number>(50);
+  // Default active bidding controls for newly added numbers
+  const [activeColor, setActiveColor] = useState<'GREEN' | 'RED'>('GREEN');
+  const [defaultStake, setDefaultStake] = useState<number>(50);
   const [customStakeInput, setCustomStakeInput] = useState<string>('50');
 
-  // Server-authoritative round data and color configuration
+  // Server-authoritative round data
   const [serverRound, setServerRound] = useState<ServerRoundInfo | null>(null);
-  const [colorConfig, setColorConfig] = useState<ServerColorClassification | null>(null);
   const [serverTimeOffsetMs, setServerTimeOffsetMs] = useState<number>(0);
 
-  // Live timer display
+  // Live timer display & 15-minute freeze state
   const [timeLeftStr, setTimeLeftStr] = useState<string>('');
   const [isFrozen, setIsFrozen] = useState<boolean>(false);
-  const [serverStatusText, setServerStatusText] = useState<string>('OPEN');
 
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -75,10 +73,10 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
   const [userEntries, setUserEntries] = useState<ConfirmedGameEntry[]>([]);
   const [loadingEntries, setLoadingEntries] = useState<boolean>(false);
 
-  // Filter limit warning
+  // Limit & action notices
   const [limitWarning, setLimitWarning] = useState<string | null>(null);
 
-  // 1. Fetch server-authoritative round configuration and color classification on mount
+  // 1. Fetch server-authoritative round configuration on mount
   useEffect(() => {
     let isMounted = true;
 
@@ -90,15 +88,11 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
         if (config.rounds && config.rounds[game.id]) {
           setServerRound(config.rounds[game.id]);
         }
-        if (config.colorClassification) {
-          setColorConfig(config.colorClassification);
-        }
         if (config.serverTime) {
           const serverMs = new Date(config.serverTime).getTime();
           setServerTimeOffsetMs(serverMs - Date.now());
         }
       } else {
-        // Fallback to initialRound
         setServerRound({
           id: initialRound.id,
           gameId: initialRound.gameId,
@@ -113,7 +107,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
     }
 
     loadServerConfig();
-    const interval = setInterval(loadServerConfig, 10000); // Polling every 10s for authoritative status
+    const interval = setInterval(loadServerConfig, 10000);
     return () => {
       isMounted = false;
       clearInterval(interval);
@@ -136,7 +130,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
       const diffFreeze = freezeMs - now;
       const diffDeclare = declareMs - now;
 
-      // Server status check takes absolute priority over client clock
+      // Server status check takes absolute priority
       const isServerLocked =
         currentRound.status === 'FROZEN' ||
         currentRound.status === 'PROCESSING' ||
@@ -145,7 +139,6 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
 
       if (isServerLocked) {
         setIsFrozen(true);
-        setServerStatusText(currentRound.status || 'FROZEN');
         if (diffDeclare > 0) {
           const m = Math.floor(diffDeclare / 60000);
           const s = Math.floor((diffDeclare % 60000) / 1000);
@@ -155,7 +148,6 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
         }
       } else {
         setIsFrozen(false);
-        setServerStatusText('OPEN');
         const m = Math.floor(diffFreeze / 60000);
         const s = Math.floor((diffFreeze % 60000) / 1000);
         setTimeLeftStr(`${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')} to freeze`);
@@ -186,82 +178,99 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
     return Array.from({ length: 100 }, (_, i) => i.toString().padStart(2, '0'));
   }, []);
 
-  // Helper: check if a number string is classified as Green by server configuration
-  const isNumberGreen = (numStr: string): boolean => {
-    if (game.id !== 'hourly_dhamaka') return false;
-    if (colorConfig && colorConfig.greenNumbers) {
-      return colorConfig.greenNumbers.includes(numStr);
-    }
-    // Fallback: 00 through 49
-    const val = parseInt(numStr, 10);
-    return val >= 0 && val <= 49;
-  };
+  // Map of selections by number string for fast O(1) lookup
+  const selectionMap = useMemo(() => {
+    const map = new Map<string, SelectionPayload>();
+    selections.forEach((s) => map.set(s.number, s));
+    return map;
+  }, [selections]);
 
-  // 4. Number Selection Logic (Max 37 numbers rule)
+  // 4. Number Selection Toggle (Max 37 numbers rule)
+  // Step 13 Rules: A player can pick ANY number (00-99) and bid GREEN or RED on it.
   const handleToggleNumber = (numStr: string) => {
     if (isFrozen) return;
     setLimitWarning(null);
 
-    setSelectedNumbers((prev) => {
-      if (prev.includes(numStr)) {
-        return prev.filter((n) => n !== numStr);
+    setSelections((prev) => {
+      const exists = prev.find((s) => s.number === numStr);
+      if (exists) {
+        // Toggle OFF: remove selection
+        return prev.filter((s) => s.number !== numStr);
       } else {
+        // Toggle ON: check max 37 limit
         if (prev.length >= 37) {
           setLimitWarning('Maximum 37 numbers limit reached! Cannot select more numbers.');
           return prev;
         }
-        return [...prev, numStr];
+        return [
+          ...prev,
+          {
+            number: numStr,
+            stake: defaultStake,
+            color: activeColor,
+          },
+        ];
       }
     });
+  };
+
+  // Modify individual selection stake
+  const handleUpdateSelectionStake = (numStr: string, newStake: number) => {
+    if (isFrozen) return;
+    setSelections((prev) =>
+      prev.map((s) => (s.number === numStr ? { ...s, stake: Math.max(0, newStake) } : s))
+    );
+  };
+
+  // Set individual selection color explicitly (GREEN or RED)
+  const handleSetSelectionColor = (numStr: string, color: 'GREEN' | 'RED') => {
+    if (isFrozen) return;
+    setSelections((prev) =>
+      prev.map((s) => (s.number === numStr ? { ...s, color } : s))
+    );
+  };
+
+  // Toggle individual selection color
+  const handleToggleSelectionColor = (numStr: string) => {
+    if (isFrozen) return;
+    setSelections((prev) =>
+      prev.map((s) =>
+        s.number === numStr
+          ? { ...s, color: s.color === 'GREEN' ? 'RED' : 'GREEN' }
+          : s
+      )
+    );
+  };
+
+  // Remove individual selection
+  const handleRemoveSelection = (numStr: string) => {
+    if (isFrozen) return;
+    setSelections((prev) => prev.filter((s) => s.number !== numStr));
+  };
+
+  // Batch: apply default stake to all current selections
+  const handleApplyDefaultStakeToAll = () => {
+    if (isFrozen || selections.length === 0) return;
+    setSelections((prev) => prev.map((s) => ({ ...s, stake: defaultStake })));
+  };
+
+  // Batch: set all selections to GREEN
+  const handleSetAllColor = (color: 'GREEN' | 'RED') => {
+    if (isFrozen || selections.length === 0) return;
+    setSelections((prev) => prev.map((s) => ({ ...s, color })));
   };
 
   // Clear All
   const handleClearAll = () => {
     if (isFrozen) return;
-    setSelectedNumbers([]);
+    setSelections([]);
     setLimitWarning(null);
   };
 
-  // Hourly Dhamaka Quick Filter Handlers
-  const handleSelectAllGreen = () => {
-    if (isFrozen) return;
-    const greenList = colorConfig?.greenNumbers || allNumbers.slice(0, 50);
-
-    // Rule: Total green numbers is 50, but max allowed is 37.
-    // Display limit warning and deterministically select the first 37 green numbers.
-    if (greenList.length > 37) {
-      const first37 = greenList.slice(0, 37);
-      setSelectedNumbers(first37);
-      setLimitWarning(
-        `Selection exceeds the 37-number limit (Total Green: ${greenList.length}). Selected the first 37 numbers (${first37[0]}–${first37[36]}).`
-      );
-    } else {
-      setSelectedNumbers(greenList);
-      setLimitWarning(null);
-    }
-  };
-
-  const handleSelectAllRed = () => {
-    if (isFrozen) return;
-    const redList = colorConfig?.redNumbers || allNumbers.slice(50, 100);
-
-    // Total red numbers is 50, but max allowed is 37.
-    if (redList.length > 37) {
-      const first37 = redList.slice(0, 37);
-      setSelectedNumbers(first37);
-      setLimitWarning(
-        `Selection exceeds the 37-number limit (Total Red: ${redList.length}). Selected the first 37 numbers (${first37[0]}–${first37[36]}).`
-      );
-    } else {
-      setSelectedNumbers(redList);
-      setLimitWarning(null);
-    }
-  };
-
-  // Stake preset selection
+  // Preset stake change
   const handleSelectPresetStake = (amount: number) => {
     if (isFrozen) return;
-    setStakePerNumber(amount);
+    setDefaultStake(amount);
     setCustomStakeInput(amount.toString());
   };
 
@@ -270,51 +279,90 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
     setCustomStakeInput(valStr);
     const parsed = parseInt(valStr, 10);
     if (!isNaN(parsed) && parsed > 0) {
-      setStakePerNumber(parsed);
+      setDefaultStake(parsed);
     }
   };
 
-  // Calculations
-  const numberCount = selectedNumbers.length;
-  const totalStake = numberCount * stakePerNumber;
-  const potential90xReward = stakePerNumber * 90;
+  // Calculations per Step 13 & 14 Rules:
+  // totalStake = sum of each individual selection's stake
+  const selectionsCount = selections.length;
+  const totalStake = useMemo(() => {
+    return selections.reduce((sum, s) => sum + (s.stake || 0), 0);
+  }, [selections]);
 
-  // Hourly Dhamaka Green Protection (80% of applicable stake on green numbers)
-  const isDhamaka = game.id === 'hourly_dhamaka' || game.hasGreenRefund;
-  const greenSelectionsCount = selectedNumbers.filter((n) => isNumberGreen(n)).length;
-  const greenProtectionEstimate = isDhamaka ? Math.round(greenSelectionsCount * stakePerNumber * 0.8) : 0;
+  const greenSelections = useMemo(() => selections.filter((s) => s.color === 'GREEN'), [selections]);
+  const redSelections = useMemo(() => selections.filter((s) => s.color === 'RED'), [selections]);
 
-  // Wallet balance display (Client-side visual preview; server performs authoritative deduction)
+  const greenStakeTotal = useMemo(() => greenSelections.reduce((sum, s) => sum + s.stake, 0), [greenSelections]);
+  const redStakeTotal = useMemo(() => redSelections.reduce((sum, s) => sum + s.stake, 0), [redSelections]);
+
+  // Max potential 90x payout (if the highest-stake winning number hits)
+  const maxIndividualStake = useMemo(() => {
+    if (selections.length === 0) return 0;
+    return Math.max(...selections.map((s) => s.stake));
+  }, [selections]);
+  const potential90xReward = maxIndividualStake * 90;
+
+  // Single Main Wallet balance display
   const availableDemoBalance = user.mainBalance;
   const hasInsufficientCredits = totalStake > availableDemoBalance;
 
+  // Comprehensive Step 14 Validation
+  const validateSelections = (): string | null => {
+    if (isFrozen) {
+      return 'Bidding is strictly frozen for this round.';
+    }
+    if (selections.length === 0) {
+      return 'Please select at least 1 number from the 00–99 grid.';
+    }
+    if (selections.length > 37) {
+      return `Selection exceeds the maximum limit of 37 numbers (Currently selected: ${selections.length}).`;
+    }
+
+    const seen = new Set<string>();
+    for (const sel of selections) {
+      if (seen.has(sel.number)) {
+        return `Duplicate number "${sel.number}" detected in selection.`;
+      }
+      seen.add(sel.number);
+
+      if (typeof sel.stake !== 'number' || isNaN(sel.stake) || sel.stake <= 0) {
+        return `Every stake must be greater than 0. Please enter a valid stake for #${sel.number}.`;
+      }
+
+      if (sel.color !== 'GREEN' && sel.color !== 'RED') {
+        return `Every selection must have GREEN or RED chosen. Please check #${sel.number}.`;
+      }
+    }
+
+    if (totalStake > availableDemoBalance) {
+      return `Insufficient demo credits in Main Wallet. Required: ₹${totalStake.toLocaleString()}, Available: ₹${availableDemoBalance.toLocaleString()}.`;
+    }
+
+    return null;
+  };
+
   // Validate before opening Review Panel
   const handleOpenReview = () => {
-    if (isFrozen) {
-      setErrorMessage('Bidding is strictly frozen for this round.');
-      return;
-    }
-    if (numberCount === 0) {
-      setErrorMessage('Please select at least 1 number from the 00–99 grid.');
-      return;
-    }
-    if (numberCount > 37) {
-      setErrorMessage('Selection exceeds the maximum limit of 37 numbers.');
-      return;
-    }
-    if (hasInsufficientCredits) {
-      setErrorMessage(
-        `Insufficient demo credits in Main Wallet. Required: ₹${totalStake.toLocaleString()}, Available: ₹${availableDemoBalance.toLocaleString()}.`
-      );
+    const error = validateSelections();
+    if (error) {
+      setErrorMessage(error);
       return;
     }
     setErrorMessage(null);
     setActiveView('review');
   };
 
-  // 5. Submit Entry to Step 11 API
+  // 5. Submit Entry to Step 14 API
   const handleConfirmSubmit = async () => {
     if (isFrozen || isSubmitting) return;
+
+    const validationError = validateSelections();
+    if (validationError) {
+      setErrorMessage(validationError);
+      setActiveView('board');
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage(null);
@@ -322,12 +370,11 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
     const activeRoundId = serverRound?.id || initialRound.id;
     const idempotencyKey = gameEntryApi.generateIdempotencyKey();
 
-    // Call Step 11 secure game-entry API
+    // Call Step 13/14 game-entry API with selections array
     const response = await gameEntryApi.submitEntry(user.id, {
       gameId: game.id,
       roundId: activeRoundId,
-      selectedNumbers,
-      amountPerNumber: stakePerNumber,
+      selections,
       idempotencyKey,
     });
 
@@ -337,12 +384,12 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
       setConfirmedEntry(response.entry);
 
       // Sync local engine wallet balance and add entry to engine state
-      const bidsForEngine = selectedNumbers.map((n) => ({
-        number: parseInt(n, 10),
-        amount: stakePerNumber,
+      const bidsForEngine = selections.map((s) => ({
+        number: parseInt(s.number, 10),
+        amount: s.stake,
+        color: s.color,
       }));
 
-      // Place in local engine to keep all tabs/views in sync
       winoraEngine.placeBids({
         gameId: game.id as any,
         bids: bidsForEngine,
@@ -352,16 +399,15 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
       onSuccessToast(`Entry ${response.entry.id} confirmed! ₹${totalStake.toLocaleString()} demo credits staked.`);
       setActiveView('success');
     } else {
-      // Map safe server error code to helpful user notification
       const errorText =
-        response.message || 'Unable to confirm entry. Please review your selection and try again.';
+        response.message || 'Unable to confirm entry. Please review your selections and try again.';
       setErrorMessage(errorText);
       setActiveView('board');
     }
   };
 
   const handleResetForNewRound = () => {
-    setSelectedNumbers([]);
+    setSelections([]);
     setConfirmedEntry(null);
     setErrorMessage(null);
     setActiveView('board');
@@ -374,7 +420,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
     >
       <div
         id="game-board-modal"
-        className="bg-zinc-900 border border-zinc-750 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] animate-in fade-in zoom-in-95 duration-150"
+        className="bg-zinc-900 border border-zinc-750 w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[96vh] animate-in fade-in zoom-in-95 duration-150"
       >
         {/* ==================================================================== */}
         {/* MODAL HEADER: Game Title, Round Status, 15m Freeze Countdown */}
@@ -395,7 +441,9 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                 Round #{serverRound?.roundNumber || initialRound.roundNumber}
               </span>
             </div>
-            <p className="text-xs text-zinc-400 mt-0.5">{game.subtitle}</p>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Bid on any number 00–99. Choose GREEN or RED per selection. 15m cutoff applies.
+            </p>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
@@ -440,7 +488,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
           </div>
         </div>
 
-        {/* 15-Minute Freeze Notice Banner */}
+        {/* Freeze Notice Banner */}
         {isFrozen ? (
           <div className="bg-rose-500/15 border-b border-rose-500/30 px-4 py-2.5 flex items-center gap-2 text-xs text-rose-300 font-medium">
             <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
@@ -454,12 +502,10 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
               <Clock className="w-3.5 h-3.5 text-amber-400" />
               15-minute freeze cutoff enforced. Submissions open until cutoff time.
             </span>
-            {isDhamaka && (
-              <span className="text-emerald-400 font-bold flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                80% Green Protection Active
-              </span>
-            )}
+            <span className="text-emerald-400 font-bold flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              80% Matching Color Protection Refund
+            </span>
           </div>
         )}
 
@@ -481,80 +527,96 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
         )}
 
         {/* ==================================================================== */}
-        {/* VIEW 1: MAIN 00–99 GAME BOARD */}
+        {/* VIEW 1: MAIN 00–99 GAME BOARD WITH PER-NUMBER STAKE & COLOR */}
         {/* ==================================================================== */}
         {activeView === 'board' && (
           <div className="p-4 overflow-y-auto space-y-4 flex-1">
-            {/* 1. Main Wallet Balance Display */}
-            <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <span className="text-[11px] font-bold uppercase text-zinc-400 tracking-wider">
-                  Main Wallet:
-                </span>
-                <p className="text-xs text-zinc-400">
-                  All game entries are placed using your Main Wallet. Server authoritatively verifies balance.
-                </p>
+            {/* Top Bar: Single Main Wallet & Bidding Defaults Bar */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Single Main Wallet Card */}
+              <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold uppercase text-zinc-400 tracking-wider block">
+                    Main Wallet (One Wallet System)
+                  </span>
+                  <p className="text-xs text-zinc-400">
+                    All game debits, 90× winnings & 80% refunds credit here.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-200">
+                  <Coins className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="text-amber-400 font-mono font-black text-sm">
+                    ₹{user.mainBalance.toLocaleString()}
+                  </span>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-200">
-                <Coins className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-zinc-400">Available Balance:</span>
-                <span className="text-amber-400 font-mono font-black">₹{user.mainBalance.toLocaleString()}</span>
-              </div>
-            </div>
+              {/* Next Added Selection Controls (Color + Stake) */}
+              <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 flex items-center justify-between gap-2 flex-wrap">
+                {/* Active Color Toggle */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400">Next Color:</span>
+                  <div className="inline-flex rounded-lg p-0.5 bg-zinc-900 border border-zinc-800">
+                    <button
+                      type="button"
+                      disabled={isFrozen}
+                      onClick={() => setActiveColor('GREEN')}
+                      className={`px-2.5 py-1 rounded-md text-xs font-black transition-all cursor-pointer ${
+                        activeColor === 'GREEN'
+                          ? 'bg-emerald-500 text-zinc-950 shadow-sm'
+                          : 'text-zinc-400 hover:text-emerald-300'
+                      }`}
+                    >
+                      GREEN
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isFrozen}
+                      onClick={() => setActiveColor('RED')}
+                      className={`px-2.5 py-1 rounded-md text-xs font-black transition-all cursor-pointer ${
+                        activeColor === 'RED'
+                          ? 'bg-rose-500 text-zinc-950 shadow-sm'
+                          : 'text-zinc-400 hover:text-rose-300'
+                      }`}
+                    >
+                      RED
+                    </button>
+                  </div>
+                </div>
 
-            {/* 2. Stake Per Number Selection */}
-            <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-300 font-bold uppercase tracking-wider">
-                  Stake Per Number:
-                </span>
-                <span className="text-[11px] text-zinc-400">
-                  (Applied equally to each selected number)
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                {/* Presets */}
+                {/* Default Stake presets */}
                 <div className="flex items-center gap-1">
-                  {[50, 100, 200, 500, 1000].map((preset) => (
+                  {[10, 50, 100, 200, 500].map((preset) => (
                     <button
                       key={preset}
                       type="button"
                       disabled={isFrozen}
                       onClick={() => handleSelectPresetStake(preset)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all cursor-pointer ${
-                        stakePerNumber === preset
-                          ? 'bg-amber-500 text-zinc-950 border-amber-400 font-black shadow-sm'
+                      className={`px-2 py-1 rounded-lg text-xs font-bold font-mono border transition-all cursor-pointer ${
+                        defaultStake === preset
+                          ? 'bg-amber-500 text-zinc-950 border-amber-400 font-black'
                           : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:bg-zinc-800'
                       }`}
                     >
                       ₹{preset}
                     </button>
                   ))}
-                </div>
-
-                {/* Custom Input */}
-                <div className="flex items-center gap-1.5 pl-2 border-l border-zinc-800">
-                  <span className="text-xs text-zinc-400 font-bold">Custom:</span>
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1 text-xs text-zinc-400">₹</span>
+                  <div className="relative pl-1">
                     <input
                       type="number"
-                      min="10"
-                      max="10000"
-                      step="10"
+                      min="1"
                       disabled={isFrozen}
                       value={customStakeInput}
                       onChange={(e) => handleCustomStakeChange(e.target.value)}
-                      className="w-20 pl-6 pr-2 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-zinc-100 font-mono font-bold focus:outline-none focus:border-amber-500"
+                      className="w-14 px-1.5 py-1 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-zinc-100 font-mono font-bold text-center"
+                      title="Custom default stake"
                     />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* 3. Number Selection Bar & Hourly Dhamaka Quick Filters */}
+            {/* Selection Status & Batch Controls Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
               <div className="flex items-center gap-3">
                 {/* Selection Count Pill */}
@@ -563,25 +625,24 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                     Selected:{' '}
                     <span
                       className={`font-mono text-sm font-black ${
-                        numberCount === 37 ? 'text-amber-400' : 'text-zinc-100'
+                        selectionsCount === 37 ? 'text-amber-400' : 'text-zinc-100'
                       }`}
                     >
-                      {numberCount}
+                      {selectionsCount}
                     </span>{' '}
                     / <span className="text-zinc-400">37</span>
                   </span>
                   <div className="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
                     <div
                       className={`h-full transition-all ${
-                        numberCount === 37 ? 'bg-amber-400' : 'bg-emerald-400'
+                        selectionsCount === 37 ? 'bg-amber-400' : 'bg-emerald-400'
                       }`}
-                      style={{ width: `${Math.min(100, (numberCount / 37) * 100)}%` }}
+                      style={{ width: `${Math.min(100, (selectionsCount / 37) * 100)}%` }}
                     />
                   </div>
                 </div>
 
-                {/* Clear All */}
-                {numberCount > 0 && (
+                {selectionsCount > 0 && (
                   <button
                     type="button"
                     disabled={isFrozen}
@@ -594,39 +655,39 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                 )}
               </div>
 
-              {/* Quick Filters for Hourly Dhamaka */}
-              {isDhamaka && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-bold text-zinc-400">Filters:</span>
+              {/* Batch modifiers */}
+              {selectionsCount > 0 && (
+                <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                  <span className="text-[11px] font-bold text-zinc-400">Set All:</span>
                   <button
                     type="button"
                     disabled={isFrozen}
-                    onClick={handleSelectAllGreen}
-                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors cursor-pointer disabled:opacity-50"
+                    onClick={() => handleSetAllColor('GREEN')}
+                    className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors cursor-pointer"
                   >
-                    + All Green
+                    All Green
                   </button>
                   <button
                     type="button"
                     disabled={isFrozen}
-                    onClick={handleSelectAllRed}
-                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25 transition-colors cursor-pointer disabled:opacity-50"
+                    onClick={() => handleSetAllColor('RED')}
+                    className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25 transition-colors cursor-pointer"
                   >
-                    + All Red
+                    All Red
                   </button>
                   <button
                     type="button"
                     disabled={isFrozen}
-                    onClick={handleClearAll}
-                    className="px-2 py-1 rounded-lg text-xs font-bold bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-700 transition-colors cursor-pointer"
+                    onClick={handleApplyDefaultStakeToAll}
+                    className="px-2 py-0.5 rounded text-[11px] font-bold bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-750 transition-colors cursor-pointer"
                   >
-                    Clear
+                    Apply ₹{defaultStake} to All
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Quick Limit Warning Notice */}
+            {/* Warning notice */}
             {limitWarning && (
               <div className="bg-amber-500/15 border border-amber-500/30 rounded-xl p-2.5 flex items-center justify-between gap-2 text-xs text-amber-300">
                 <div className="flex items-center gap-2">
@@ -644,36 +705,23 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
             )}
 
             {/* ================================================================ */}
-            {/* 4. 00–99 NUMBER BOARD (MOBILE-FIRST 10x10 GRID) */}
-            {/* Numbers are strictly 2-digit strings: '00', '01' ... '99' */}
+            {/* 00–99 NUMBER BOARD (10x10 GRID) */}
+            {/* Each cell shows number. If selected, shows color badge & stake */}
             {/* ================================================================ */}
             <div className="bg-zinc-950 p-2.5 sm:p-3 rounded-2xl border border-zinc-800">
               <div className="flex items-center justify-between mb-2 px-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
-                    00–99 Number Board
-                  </span>
-                  {isDhamaka && (
-                    <div className="flex items-center gap-2 text-[10px] font-bold">
-                      <span className="text-emerald-400 flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" /> Green (80% Protection)
-                      </span>
-                      <span className="text-rose-400 flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-rose-400 inline-block" /> Red (90× Multiplier)
-                      </span>
-                    </div>
-                  )}
-                </div>
+                <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                  00–99 Number Board (Tap to toggle selection)
+                </span>
                 <span className="text-[11px] text-zinc-400">
-                  Tap to select / deselect
+                  New numbers added as <strong className={activeColor === 'GREEN' ? 'text-emerald-400' : 'text-rose-400'}>{activeColor}</strong> @ ₹{defaultStake}
                 </span>
               </div>
 
-              {/* 10 x 10 Responsive Grid */}
               <div className="grid grid-cols-10 gap-1 sm:gap-1.5 p-1 bg-zinc-900/50 rounded-xl border border-zinc-800/80">
                 {allNumbers.map((numStr) => {
-                  const isSelected = selectedNumbers.includes(numStr);
-                  const isGreen = isNumberGreen(numStr);
+                  const sel = selectionMap.get(numStr);
+                  const isSelected = Boolean(sel);
 
                   return (
                     <button
@@ -684,20 +732,18 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                       onClick={() => handleToggleNumber(numStr)}
                       className={`relative aspect-square rounded-lg flex flex-col items-center justify-center transition-all cursor-pointer select-none active:scale-95 disabled:cursor-not-allowed ${
                         isSelected
-                          ? 'bg-amber-500 text-zinc-950 font-black shadow-md ring-2 ring-amber-300 scale-95 z-10'
-                          : isDhamaka
-                          ? isGreen
-                            ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-900/60'
-                            : 'bg-rose-950/30 text-rose-300 border border-rose-500/30 hover:bg-rose-900/50'
-                          : 'bg-zinc-850 text-zinc-200 border border-zinc-800 hover:border-amber-500/50 hover:bg-zinc-800'
+                          ? sel?.color === 'GREEN'
+                            ? 'bg-emerald-500 text-zinc-950 font-black shadow-md ring-2 ring-emerald-300 z-10'
+                            : 'bg-rose-500 text-zinc-950 font-black shadow-md ring-2 ring-rose-300 z-10'
+                          : 'bg-zinc-850 text-zinc-200 border border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800'
                       } ${isFrozen ? 'opacity-40' : ''}`}
                     >
                       <span className="font-mono text-xs sm:text-sm font-bold leading-none">
                         {numStr}
                       </span>
-                      {isSelected && (
+                      {isSelected && sel && (
                         <span className="text-[8px] sm:text-[9px] font-black leading-none mt-0.5 opacity-90">
-                          ₹{stakePerNumber}
+                          ₹{sel.stake}
                         </span>
                       )}
                     </button>
@@ -706,43 +752,150 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
               </div>
             </div>
 
-            {/* Selected Numbers Chip Preview */}
-            {selectedNumbers.length > 0 && (
-              <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800">
-                <span className="text-[10px] font-bold uppercase text-zinc-400 tracking-wider block mb-1.5">
-                  Selected Numbers ({selectedNumbers.length} / 37):
-                </span>
-                <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
-                  {selectedNumbers
-                    .slice()
-                    .sort((a, b) => a.localeCompare(b))
-                    .map((numStr) => (
-                      <span
-                        key={numStr}
-                        onClick={() => handleToggleNumber(numStr)}
-                        className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-pointer hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/40 transition-colors"
-                        title="Click to remove"
-                      >
-                        #{numStr}
-                      </span>
-                    ))}
+            {/* ================================================================ */}
+            {/* SELECTED SELECTIONS LIST (ITEMIZED WITH INDIVIDUAL STAKE & COLOR) */}
+            {/* ================================================================ */}
+            {selections.length > 0 && (
+              <div className="bg-zinc-950 p-3 rounded-2xl border border-zinc-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
+                    Selected Bids ({selections.length} / 37) — Customize per number:
+                  </span>
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-emerald-400 font-bold">
+                      {greenSelections.length} Green (₹{greenStakeTotal.toLocaleString()})
+                    </span>
+                    <span className="text-rose-400 font-bold">
+                      {redSelections.length} Red (₹{redStakeTotal.toLocaleString()})
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
+                  {selections.map((sel) => (
+                    <div
+                      key={sel.number}
+                      className="bg-zinc-900 border border-zinc-800 rounded-xl p-2 flex items-center justify-between gap-2"
+                    >
+                      {/* Number & GREEN/RED Selector */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-black text-sm text-zinc-100 bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700">
+                          #{sel.number}
+                        </span>
+
+                        {/* Explicit GREEN / RED Selector */}
+                        <div className="inline-flex rounded-lg p-0.5 bg-zinc-950 border border-zinc-750">
+                          <button
+                            type="button"
+                            id={`selection-color-green-${sel.number}`}
+                            disabled={isFrozen}
+                            onClick={() => handleSetSelectionColor(sel.number, 'GREEN')}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-black cursor-pointer transition-all ${
+                              sel.color === 'GREEN'
+                                ? 'bg-emerald-500 text-zinc-950 shadow-sm'
+                                : 'text-zinc-400 hover:text-emerald-300'
+                            }`}
+                            title="Set color to GREEN"
+                          >
+                            GREEN
+                          </button>
+                          <button
+                            type="button"
+                            id={`selection-color-red-${sel.number}`}
+                            disabled={isFrozen}
+                            onClick={() => handleSetSelectionColor(sel.number, 'RED')}
+                            className={`px-1.5 py-0.5 rounded text-[9px] font-black cursor-pointer transition-all ${
+                              sel.color === 'RED'
+                                ? 'bg-rose-500 text-zinc-950 shadow-sm'
+                                : 'text-zinc-400 hover:text-rose-300'
+                            }`}
+                            title="Set color to RED"
+                          >
+                            RED
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Stake +/- and Input */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          id={`stake-minus-${sel.number}`}
+                          disabled={isFrozen || sel.stake <= 1}
+                          onClick={() => handleUpdateSelectionStake(sel.number, Math.max(1, sel.stake - 5))}
+                          className="w-5 h-5 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 flex items-center justify-center cursor-pointer disabled:opacity-30"
+                          title="Decrease stake by 5"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <div className="relative">
+                          <span className="text-[10px] text-zinc-400 absolute left-1.5 top-0.5 pointer-events-none">₹</span>
+                          <input
+                            type="number"
+                            id={`stake-input-${sel.number}`}
+                            min="1"
+                            disabled={isFrozen}
+                            value={sel.stake === 0 ? '' : sel.stake}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === '') {
+                                handleUpdateSelectionStake(sel.number, 0);
+                              } else {
+                                const v = parseInt(raw, 10);
+                                if (!isNaN(v)) handleUpdateSelectionStake(sel.number, Math.max(0, v));
+                              }
+                            }}
+                            onBlur={() => {
+                              if (sel.stake <= 0) {
+                                handleUpdateSelectionStake(sel.number, 5);
+                              }
+                            }}
+                            className="w-16 pl-4 pr-1 py-0.5 bg-zinc-950 border border-zinc-700 rounded text-xs text-zinc-100 font-mono font-bold text-center focus:border-amber-400 focus:outline-none"
+                            placeholder="5"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          id={`stake-plus-${sel.number}`}
+                          disabled={isFrozen}
+                          onClick={() => handleUpdateSelectionStake(sel.number, sel.stake + 5)}
+                          className="w-5 h-5 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 flex items-center justify-center cursor-pointer"
+                          title="Increase stake by 5"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+
+                        {/* Remove */}
+                        <button
+                          type="button"
+                          id={`remove-selection-${sel.number}`}
+                          disabled={isFrozen}
+                          onClick={() => handleRemoveSelection(sel.number)}
+                          className="w-5 h-5 rounded text-zinc-400 hover:text-rose-400 hover:bg-zinc-800 flex items-center justify-center cursor-pointer ml-1"
+                          title="Remove selection"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* 5. Live Calculations Cards */}
+            {/* Live Calculations Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Total Stake */}
               <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
                 <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">
-                  Total Stake ({numberCount} × ₹{stakePerNumber})
+                  Total Stake (Sum of Individual Stakes)
                 </span>
                 <p className="text-xl font-black text-zinc-100 font-mono mt-0.5">
                   ₹{totalStake.toLocaleString()}{' '}
                   <span className="text-xs font-normal text-zinc-400">demo credits</span>
                 </p>
                 <span className="text-[10px] text-zinc-400">
-                  Deducted from Main Wallet
+                  Authoritatively deducted from Main Wallet
                 </span>
               </div>
 
@@ -757,23 +910,21 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                   <span className="text-xs font-normal text-emerald-400/80">demo credits</span>
                 </p>
                 <span className="text-[10px] text-zinc-400">
-                  On single exact draw match (Demo Prototype)
+                  Exact winning number match pays stake × 90
                 </span>
               </div>
 
-              {/* Green Protection Refund (Hourly Dhamaka) */}
+              {/* Matching Color Protection Refund Notice */}
               <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
                 <span className="text-[10px] uppercase font-bold text-cyan-400 tracking-wider flex items-center gap-1">
                   <ShieldCheck className="w-3 h-3" />
-                  {isDhamaka ? 'Green Protection (80%)' : 'Standard Game Multiplier'}
+                  Color Protection (80%)
                 </span>
-                <p className="text-xl font-black text-cyan-300 font-mono mt-0.5">
-                  {isDhamaka ? `₹${greenProtectionEstimate.toLocaleString()}` : 'N/A (90× Only)'}
+                <p className="text-xs font-bold text-cyan-300 mt-1">
+                  80% Refund on Matching Color
                 </p>
                 <span className="text-[10px] text-zinc-400">
-                  {isDhamaka
-                    ? `80% refund on ${greenSelectionsCount} Green number(s) if not winning`
-                    : 'Fixed 90× single return'}
+                  Master declares Winning Number AND Result Color (GREEN or RED). Matching color returns 80% stake.
                 </span>
               </div>
             </div>
@@ -794,7 +945,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                   </h3>
                 </div>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  Demo Credits Only
+                  Main Wallet Demo Credits
                 </span>
               </div>
 
@@ -817,61 +968,79 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                 </div>
                 <div className="bg-zinc-900 p-2.5 rounded-xl border border-zinc-800">
                   <span className="text-[10px] uppercase font-bold text-zinc-400 block">Selections</span>
-                  <span className="font-bold text-amber-400 text-sm">{numberCount} / 37</span>
+                  <span className="font-bold text-amber-400 text-sm">{selectionsCount} / 37</span>
                 </div>
               </div>
 
-              {/* Selected Numbers Grid */}
+              {/* Selections Breakdown Table */}
               <div>
                 <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider block mb-2">
-                  Selected Numbers ({numberCount}):
+                  Itemized Selections ({selectionsCount}):
                 </span>
-                <div className="flex flex-wrap gap-1.5 p-3 bg-zinc-900 rounded-xl border border-zinc-800 max-h-32 overflow-y-auto">
-                  {selectedNumbers
-                    .slice()
-                    .sort((a, b) => a.localeCompare(b))
-                    .map((n) => (
-                      <span
-                        key={n}
-                        className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-zinc-800 text-zinc-200 border border-zinc-700"
-                      >
-                        {n}
-                      </span>
-                    ))}
+                <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
+                  <div className="max-h-48 overflow-y-auto">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-zinc-950 text-[10px] uppercase text-zinc-400 font-bold border-b border-zinc-800">
+                        <tr>
+                          <th className="p-2.5">Number</th>
+                          <th className="p-2.5">Chosen Color</th>
+                          <th className="p-2.5 text-right">Individual Stake</th>
+                          <th className="p-2.5 text-right">90× Win Reward</th>
+                          <th className="p-2.5 text-right">80% Color Refund</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-800 font-mono">
+                        {selections.map((s) => (
+                          <tr key={s.number} className="hover:bg-zinc-850/50">
+                            <td className="p-2.5 font-bold text-zinc-100">#{s.number}</td>
+                            <td className="p-2.5">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                                  s.color === 'GREEN'
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                                    : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                                }`}
+                              >
+                                {s.color}
+                              </span>
+                            </td>
+                            <td className="p-2.5 text-right font-bold text-zinc-200">
+                              ₹{s.stake.toLocaleString()}
+                            </td>
+                            <td className="p-2.5 text-right text-emerald-400">
+                              ₹{(s.stake * 90).toLocaleString()}
+                            </td>
+                            <td className="p-2.5 text-right text-cyan-300">
+                              ₹{Math.round(s.stake * 0.8).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
 
-              {/* Stake & Math Breakdown */}
+              {/* Totals Breakdown */}
               <div className="space-y-2 border-t border-zinc-800 pt-3 text-xs">
-                <div className="flex justify-between text-zinc-300">
-                  <span>Stake Per Selected Number:</span>
-                  <span className="font-mono font-bold">₹{stakePerNumber.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-zinc-300">
-                  <span>Number Count:</span>
-                  <span className="font-mono font-bold">{numberCount} numbers</span>
-                </div>
-                <div className="flex justify-between text-base font-black text-zinc-100 border-t border-zinc-800/80 pt-2">
+                <div className="flex justify-between text-base font-black text-zinc-100">
                   <span>Total Stake Required:</span>
                   <span className="font-mono text-amber-400">₹{totalStake.toLocaleString()} demo credits</span>
                 </div>
-                <div className="flex justify-between text-emerald-400 font-bold">
-                  <span>Potential 90× Reward:</span>
-                  <span className="font-mono">₹{potential90xReward.toLocaleString()} demo credits</span>
+                <div className="flex justify-between text-xs text-zinc-400">
+                  <span>Green Bids Total:</span>
+                  <span className="font-mono text-emerald-400">₹{greenStakeTotal.toLocaleString()} ({greenSelections.length} bids)</span>
                 </div>
-
-                {isDhamaka && (
-                  <div className="flex justify-between text-cyan-300 font-medium">
-                    <span>Green Protection (80% on {greenSelectionsCount} Green selections):</span>
-                    <span className="font-mono">₹{greenProtectionEstimate.toLocaleString()}</span>
-                  </div>
-                )}
+                <div className="flex justify-between text-xs text-zinc-400">
+                  <span>Red Bids Total:</span>
+                  <span className="font-mono text-rose-400">₹{redStakeTotal.toLocaleString()} ({redSelections.length} bids)</span>
+                </div>
               </div>
 
               {/* Disclaimer Notice */}
               <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-xl text-[11px] text-zinc-400 leading-relaxed">
                 <p>
-                  <strong>Notice:</strong> This is an interactive demo credit prototype. No real-money is staked or processed. The server performs authoritative round cutoff and balance validation.
+                  <strong>Notice:</strong> This is strictly an interactive virtual demo prototype. No real money or payment gateway is processed. The server calculates authoritative total stake and enforces the 15-minute freeze cutoff.
                 </p>
               </div>
             </div>
@@ -892,7 +1061,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                 Entry Confirmed!
               </h3>
               <p className="text-xs text-zinc-400 mt-1">
-                Your entry has been securely registered with the server-authoritative Step 11 engine.
+                Your entry has been securely registered with the server-authoritative Step 13 engine.
               </p>
             </div>
 
@@ -912,21 +1081,14 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
               <div className="flex justify-between">
                 <span className="text-zinc-400">Round:</span>
                 <span className="font-mono font-bold text-zinc-200">
-                  #{confirmedEntry.roundNumber} ({confirmedEntry.roundId})
+                  #{confirmedEntry.roundNumber}
                 </span>
               </div>
 
               <div className="flex justify-between">
-                <span className="text-zinc-400">Numbers Count:</span>
+                <span className="text-zinc-400">Selections Count:</span>
                 <span className="font-mono font-bold text-zinc-200">
-                  {confirmedEntry.numbersCount} numbers
-                </span>
-              </div>
-
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Stake Per Number:</span>
-                <span className="font-mono font-bold text-zinc-200">
-                  ₹{confirmedEntry.amountPerNumber}
+                  {confirmedEntry.selections.length} numbers
                 </span>
               </div>
 
@@ -937,21 +1099,21 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                 </span>
               </div>
 
-              <div className="flex justify-between">
-                <span className="text-zinc-400">Potential 90× Reward:</span>
-                <span className="font-mono font-bold text-emerald-400">
-                  ₹{confirmedEntry.potentialReward.toLocaleString()}
-                </span>
-              </div>
-
-              {confirmedEntry.greenProtectionAmount > 0 && (
-                <div className="flex justify-between text-cyan-300">
-                  <span>80% Green Protection:</span>
-                  <span className="font-mono font-bold">
-                    ₹{confirmedEntry.greenProtectionAmount.toLocaleString()}
+              {/* Mini chips */}
+              <div className="pt-1 flex flex-wrap gap-1">
+                {confirmedEntry.selections.map((s, idx) => (
+                  <span
+                    key={idx}
+                    className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                      s.color === 'GREEN'
+                        ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
+                        : 'bg-rose-950/40 text-rose-300 border-rose-500/30'
+                    }`}
+                  >
+                    #{s.number} (₹{s.stake} {s.color})
                   </span>
-                </div>
-              )}
+                ))}
+              </div>
 
               <div className="flex justify-between border-t border-zinc-800/80 pt-2">
                 <span className="text-zinc-400">Status:</span>
@@ -991,7 +1153,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                   My Game Entries
                 </h3>
                 <p className="text-xs text-zinc-400">
-                  Authoritative record of your submissions for {game.name} & other draws. Read-only.
+                  Authoritative record of your submissions for {game.name}. Read-only ledger.
                 </p>
               </div>
 
@@ -1038,18 +1200,37 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                         <span className="text-[10px] text-zinc-400">Round #{entry.roundNumber}</span>
                       </div>
 
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                        {entry.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {entry.settledWinningNumber && (
+                          <span className="font-mono text-[10px] text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30 font-black">
+                            Winner: [{entry.settledWinningNumber}] {entry.settledResultColor}
+                          </span>
+                        )}
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            entry.status === 'WON'
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                          }`}
+                        >
+                          {entry.status}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-1">
-                      {entry.selectedNumbers.map((numStr) => (
+                    <div className="flex flex-wrap gap-1.5">
+                      {entry.selections.map((s, idx) => (
                         <span
-                          key={numStr}
-                          className="font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-zinc-900 text-zinc-300 border border-zinc-800"
+                          key={idx}
+                          className={`font-mono text-[11px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 ${
+                            s.color === 'GREEN'
+                              ? 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
+                              : 'bg-rose-950/40 text-rose-300 border-rose-500/30'
+                          }`}
                         >
-                          {numStr}
+                          <span>#{s.number}</span>
+                          <span className="text-[9px] opacity-75">₹{s.stake}</span>
+                          <span className="text-[8px] font-black">{s.color}</span>
                         </span>
                       ))}
                     </div>
@@ -1060,14 +1241,26 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                         <strong className="text-zinc-200">
                           ₹{entry.totalStake.toLocaleString()}
                         </strong>{' '}
-                        ({entry.numbersCount} nos @ ₹{entry.amountPerNumber})
+                        ({entry.selections.length} numbers)
                       </div>
-                      <div>
-                        {new Date(entry.createdAt).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}{' '}
-                        • {new Date(entry.createdAt).toLocaleDateString()}
+                      <div className="flex items-center gap-3">
+                        {entry.settledReward !== undefined && entry.settledReward > 0 && (
+                          <span className="text-emerald-400 font-bold font-mono">
+                            +₹{entry.settledReward.toLocaleString()} 90×
+                          </span>
+                        )}
+                        {entry.protectionRefund !== undefined && entry.protectionRefund > 0 && (
+                          <span className="text-cyan-300 font-bold font-mono">
+                            +₹{entry.protectionRefund.toLocaleString()} Refund
+                          </span>
+                        )}
+                        <span>
+                          {new Date(entry.createdAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}{' '}
+                          • {new Date(entry.createdAt).toLocaleDateString()}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -1108,7 +1301,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                   type="button"
                   id="review-entry-button"
                   disabled={
-                    isFrozen || numberCount === 0 || hasInsufficientCredits || numberCount > 37
+                    isFrozen || selectionsCount === 0 || hasInsufficientCredits || selectionsCount > 37
                   }
                   onClick={handleOpenReview}
                   className="px-6 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 text-zinc-950 hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2"
@@ -1120,7 +1313,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                     </>
                   ) : (
                     <>
-                      <span>Review Entry ({numberCount} Nos • ₹{totalStake.toLocaleString()})</span>
+                      <span>Review Entry ({selectionsCount} Nos • ₹{totalStake.toLocaleString()})</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}

@@ -2,8 +2,8 @@
  * WINORA Core Game & Financial Engine
  * Implements:
  * - Role Hierarchy: Master -> Agent -> Player
- * - Dual Wallet System: Main Wallet (Withdrawable) + Bonus Wallet (Play-Only)
- * - Games: Games X, Y, Z (90x) + Hourly Dhamaka (90x + 80% Green Refund)
+ * - Single Wallet System: Main Wallet (Demo Credits)
+ * - Games: Games X, Y, Z (90x) + Hourly Dhamaka (90x + 80% Protection Refund)
  * - 15-Minute Bidding Freeze Logic
  * - Dual-Confirmation Handshake (Deposit & Withdrawal)
  * - Referral Engine (50% Main / 50% Bonus on 1st Deposit + 10% Agent Commission)
@@ -595,7 +595,7 @@ class WinoraStateManager {
   // ---------------------------------------------------------------------------
   public placeBids(params: {
     gameId: WinoraGameId;
-    bids: { number: number; amount: number }[];
+    bids: { number: number; amount: number; color?: 'GREEN' | 'RED' }[];
     walletType?: 'main';
   }): { success: boolean; message: string; totalDebited: number } {
     const { gameId, bids } = params;
@@ -636,9 +636,10 @@ class WinoraStateManager {
 
     const gameConfig = WINORA_GAMES.find((g) => g.id === gameId);
 
-    // Record individual bids
+    // Record individual bids with explicitly selected color
     bids.forEach((b) => {
-      const isGreen = isNumberGreen(b.number);
+      const explicitColor = b.color || 'GREEN';
+      const isGreen = explicitColor === 'GREEN';
       const newBid: BidRecord = {
         id: `bid-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         gameId,
@@ -649,6 +650,7 @@ class WinoraStateManager {
         number: b.number,
         amount: b.amount,
         walletUsed: 'main',
+        color: explicitColor,
         isGreen,
         status: 'placed',
         payoutAmount: 0,
@@ -955,7 +957,7 @@ class WinoraStateManager {
     const round = this.rounds[gameId];
     if (!round) return { success: false, message: 'Invalid round', totalWinnersPaid: 0, totalRefundsPaid: 0, netMasterPnL: 0 };
 
-    round.resultNumber = winningNumber;
+    round.resultNumber = winningNumber.toString().padStart(2, '0');
     round.status = 'completed';
     round.declaredAt = new Date().toISOString();
 
@@ -1051,7 +1053,7 @@ class WinoraStateManager {
     this.masterProfile.mainBalance -= amount;
     this.masterProfile.walletBalance = this.masterProfile.mainBalance;
     agent.mainBalance += amount;
-    agent.walletBalance = agent.mainBalance + (agent.bonusBalance || 0);
+    agent.walletBalance = agent.mainBalance;
 
     this.history.unshift({
       id: `act-mtransfer-${Date.now()}`,

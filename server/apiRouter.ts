@@ -270,13 +270,14 @@ apiRouter.get('/game-entry/my-entries', (req: Request, res: Response) => {
 });
 
 /**
- * Step 11 Secure Game Entry Submission
+ * Step 13 Secure Game Entry Submission
  * Strictly validates:
  * - Authoritative round status and 15-minute freeze cutoff against server clock
  * - Maximum 37 selected numbers
  * - Valid 2-digit string representations ('00' to '99')
- * - Valid demo stake amount
- * - Authoritative wallet balance deduction
+ * - Valid selections array with per-number stake and player-chosen color (GREEN/RED)
+ * - Server calculates authoritative totalStake
+ * - Authoritative Main Wallet balance deduction
  * - Idempotency key deduplication
  */
 apiRouter.post('/game-entry/submit', (req: Request, res: Response) => {
@@ -284,9 +285,7 @@ apiRouter.post('/game-entry/submit', (req: Request, res: Response) => {
     const {
       gameId,
       roundId,
-      gameModeId,
-      selectedNumbers,
-      amountPerNumber,
+      selections,
       idempotencyKey,
     } = req.body;
 
@@ -297,9 +296,7 @@ apiRouter.post('/game-entry/submit', (req: Request, res: Response) => {
       userId,
       gameId,
       roundId,
-      gameModeId,
-      selectedNumbers,
-      amountPerNumber: Number(amountPerNumber),
+      selections,
       idempotencyKey,
     });
 
@@ -498,20 +495,74 @@ apiRouter.post('/results/freeze-round', (req: Request, res: Response) => {
 });
 
 /**
+ * Calculate potential liabilities before Master commits declaration
+ */
+apiRouter.post('/results/calculate-liability', (req: Request, res: Response) => {
+  try {
+    const { gameId, roundId, winningNumber, resultColor } = req.body;
+    if (!gameId || !roundId || !winningNumber || !resultColor) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'MISSING_PARAMETERS',
+        message: 'Missing parameters: gameId, roundId, winningNumber, and resultColor are all required.',
+      });
+      return;
+    }
+
+    if (typeof winningNumber !== 'string' || !/^\d{2}$/.test(winningNumber)) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_WINNING_NUMBER',
+        message: 'Winning number must be a two-digit string between "00" and "99".',
+      });
+      return;
+    }
+
+    if (resultColor !== 'GREEN' && resultColor !== 'RED') {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_RESULT_COLOR',
+        message: 'Result color must be explicitly declared as either GREEN or RED.',
+      });
+      return;
+    }
+
+    const liability = serverResultSettlementService.calculateSettlementLiability({
+      gameId,
+      roundId,
+      winningNumber,
+      resultColor,
+    });
+
+    res.json({
+      success: true,
+      liability,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      errorCode: 'SERVER_ERROR',
+      message: error.message || 'Failed to calculate liability.',
+    });
+  }
+});
+
+/**
  * Master Result Declaration & Settlement Execution
  * Validates:
  * - Master/Admin authorization (players rejected with 403)
  * - Round is FROZEN (OPEN rounds rejected)
  * - Round not already settled (idempotent, no double pay)
  * - Valid 00-99 winning number
- * - Atomically executes 90x payouts + 80% Green Protection
+ * - Valid Result Color (GREEN or RED)
+ * - Atomically executes 90x payouts + 80% matching color protection refund (Hourly Dhamaka)
  * - Generates immutable wallet ledger entries and audit log
  */
 apiRouter.post('/results/declare', (req: Request, res: Response) => {
   try {
     const actorRole = (req.headers['x-user-role'] as string) || '';
     const actorId = (req.headers['x-user-id'] as string) || 'master-unknown';
-    const { gameId, roundId, winningNumber, idempotencyKey } = req.body;
+    const { gameId, roundId, winningNumber, resultColor, idempotencyKey } = req.body;
 
     // Reject non-Master callers immediately
     if (actorRole !== 'master' && actorRole !== 'admin') {
@@ -523,12 +574,43 @@ apiRouter.post('/results/declare', (req: Request, res: Response) => {
       return;
     }
 
+    // Task 2: Validate winning number presence and format
+    if (!winningNumber || typeof winningNumber !== 'string' || !/^\d{2}$/.test(winningNumber)) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_WINNING_NUMBER',
+        message: 'Winning number must be a valid two-digit string between "00" and "99".',
+      });
+      return;
+    }
+
+    const numVal = parseInt(winningNumber, 10);
+    if (isNaN(numVal) || numVal < 0 || numVal > 99) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_WINNING_NUMBER',
+        message: 'Winning number out of range. Allowed range is 00 to 99.',
+      });
+      return;
+    }
+
+    // Task 2: Validate result color presence and value
+    if (!resultColor || (resultColor !== 'GREEN' && resultColor !== 'RED')) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'INVALID_RESULT_COLOR',
+        message: 'Result Color must be explicitly declared as either GREEN or RED.',
+      });
+      return;
+    }
+
     const settleRes = serverResultSettlementService.declareResultAndSettle({
       actorRole,
       actorId,
       gameId,
       roundId,
       winningNumber,
+      resultColor,
       idempotencyKey,
     });
 
@@ -543,7 +625,7 @@ apiRouter.post('/results/declare', (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      message: `Result successfully declared and settled for Round #${settleRes.result?.roundNumber}. Winning Number: ${winningNumber}.`,
+      message: `Result successfully declared and settled for Round #${settleRes.result?.roundNumber}. Winning Number: ${winningNumber}, Result Color: ${resultColor}.`,
       result: settleRes.result,
       summary: settleRes.summary,
     });

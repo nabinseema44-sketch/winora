@@ -77,7 +77,7 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({
   const totalSystemCoins =
     currentUser.mainBalance +
     agents.reduce((sum, a) => sum + a.mainBalance, 0) +
-    players.reduce((sum, p) => sum + p.mainBalance + (p.bonusBalance || 0), 0);
+    players.reduce((sum, p) => sum + p.mainBalance, 0);
 
   const activePlayersCount = players.filter((p) => p.status === 'active').length;
   const activeAgentsCount = agents.filter((a) => a.status === 'active').length;
@@ -224,7 +224,7 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({
           }`}
         >
           <Trophy className="w-4 h-4" />
-          <span>Result Declaration & Settlement (Step 13)</span>
+          <span>Result Declaration & Settlement (Step 15)</span>
         </button>
 
         <button

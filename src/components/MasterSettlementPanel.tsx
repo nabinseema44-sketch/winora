@@ -11,6 +11,8 @@ import {
   Lock,
   ArrowRight,
   TrendingUp,
+  TrendingDown,
+  Info,
 } from 'lucide-react';
 import {
   resultSettlementApi,
@@ -18,6 +20,7 @@ import {
   GameResultRecord,
   SettlementSummary,
   SettlementAuditLog,
+  SettlementLiabilityPreview,
 } from '../services/resultSettlementApi.ts';
 
 interface MasterSettlementPanelProps {
@@ -33,14 +36,25 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
 }) => {
   const [rounds, setRounds] = useState<RoundWithStats[]>([]);
   const [selectedRoundId, setSelectedRoundId] = useState<string>('');
+  
+  // Step 15: Master explicitly declares TWO values:
+  // 1. Winning Number ("00" to "99")
+  // 2. Result Color ("GREEN" or "RED")
   const [winningNumber, setWinningNumber] = useState<string>('');
+  const [resultColor, setResultColor] = useState<'GREEN' | 'RED' | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // Live liability preview for selected number and color
+  const [liabilityPreview, setLiabilityPreview] = useState<SettlementLiabilityPreview | null>(null);
+  const [calculatingLiability, setCalculatingLiability] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [declaring, setDeclaring] = useState(false);
   const [auditLogs, setAuditLogs] = useState<SettlementAuditLog[]>([]);
   const [recentResults, setRecentResults] = useState<GameResultRecord[]>([]);
   const [settlementSuccessSummary, setSettlementSuccessSummary] = useState<SettlementSummary | null>(null);
 
-  // Load rounds and logs
+  // Load rounds, history and audit logs
   const loadData = async () => {
     setLoading(true);
     const [roundsData, resultsData, logsData] = await Promise.all([
@@ -53,7 +67,6 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
     setAuditLogs(logsData);
 
     if (roundsData.length > 0 && !selectedRoundId) {
-      // Default to the first FROZEN round or the first round
       const frozen = roundsData.find((r) => r.status === 'FROZEN');
       setSelectedRoundId(frozen ? frozen.id : roundsData[0].id);
     }
@@ -67,6 +80,37 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
   }, []);
 
   const activeRound = rounds.find((r) => r.id === selectedRoundId) || rounds[0];
+
+  // Fetch liability preview whenever activeRound, winningNumber, or resultColor changes
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function updateLiability() {
+      if (!activeRound || !winningNumber || !/^\d{2}$/.test(winningNumber) || !resultColor) {
+        setLiabilityPreview(null);
+        return;
+      }
+
+      setCalculatingLiability(true);
+      const res = await resultSettlementApi.calculateLiability({
+        gameId: activeRound.gameId,
+        roundId: activeRound.id,
+        winningNumber,
+        resultColor,
+      });
+
+      if (!isCancelled) {
+        setLiabilityPreview(res.liability || null);
+        setCalculatingLiability(false);
+      }
+    }
+
+    updateLiability();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeRound?.id, activeRound?.gameId, winningNumber, resultColor]);
 
   // Freeze action
   const handleFreezeRound = async () => {
@@ -83,28 +127,34 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
     setLoading(false);
   };
 
-  // Declare Result action
-  const handleDeclareResult = async () => {
+  // Open confirmation modal with validation
+  const handleOpenConfirmModal = () => {
     if (!activeRound) return;
+    if (activeRound.status === 'COMPLETED') {
+      onToast('This round has already been settled and completed.');
+      return;
+    }
     if (!winningNumber || !/^\d{2}$/.test(winningNumber)) {
       onToast('Please select a valid 2-digit winning number (00–99).');
       return;
     }
+    if (!resultColor || (resultColor !== 'GREEN' && resultColor !== 'RED')) {
+      onToast('Please explicitly select a Result Color (GREEN or RED).');
+      return;
+    }
+    setShowConfirmModal(true);
+  };
 
-    const isConfirmed = window.confirm(
-      `CONFIRM RESULT DECLARATION:\n\n` +
-      `Game: ${activeRound.gameName}\n` +
-      `Round: #${activeRound.roundNumber} (${activeRound.id})\n` +
-      `Winning Number: [${winningNumber}]\n\n` +
-      `This will execute 90× demo payouts to all matching bids and 80% Green Protection for Hourly Dhamaka. Continue?`
-    );
-    if (!isConfirmed) return;
+  // Execute settlement after explicit confirmation
+  const confirmAndExecuteSettlement = async () => {
+    if (!activeRound || !winningNumber || !resultColor) return;
 
     setDeclaring(true);
     const res = await resultSettlementApi.declareResult({
       gameId: activeRound.gameId,
       roundId: activeRound.id,
       winningNumber,
+      resultColor,
       actorId,
       actorRole,
     });
@@ -113,9 +163,12 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
       setSettlementSuccessSummary(res.summary);
       onToast(res.message);
       setWinningNumber('');
+      setResultColor(null);
+      setShowConfirmModal(false);
       await loadData();
     } else {
       onToast(res.message);
+      setShowConfirmModal(false);
     }
     setDeclaring(false);
   };
@@ -127,13 +180,13 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
         <div>
           <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 mb-1">
             <Trophy className="w-4 h-4" />
-            <span>Master Authoritative Settlement Console (Step 13)</span>
+            <span>Master Authoritative Settlement Console (Step 13 Final Rules)</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-zinc-100 font-display">
-            00–99 Result Declaration & Payout Engine
+            00–99 Result Declaration & P&L Liability Engine
           </h2>
-          <p className="text-xs text-zinc-400 mt-1 max-w-xl">
-            Declare exact winning numbers for FROZEN rounds. The server automatically calculates 90× single-number returns, applies 80% Green Protection refunds, logs immutable audit records, and credits user demo wallets.
+          <p className="text-xs text-zinc-400 mt-1 max-w-2xl">
+            The Master must explicitly declare TWO independent values: <strong>Winning Number</strong> (00–99) and <strong>Result Color</strong> (GREEN or RED). Winning Number awards 90× payouts, and Result Color awards 80% protection refunds directly to players' Main Wallets.
           </p>
         </div>
 
@@ -196,9 +249,18 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
                     <span>Pool: ₹{r.totalBidsPool.toLocaleString()} demo</span>
                   </div>
 
-                  {isCompleted && r.resultNumber && (
-                    <div className="text-[11px] text-emerald-400 font-bold">
-                      Winner Declared: <span className="font-mono underline">[{r.resultNumber}]</span>
+                  {isCompleted && (r.resultNumber || r.result?.winningNumber) && (
+                    <div className="text-[11px] text-emerald-400 font-bold flex items-center gap-1.5">
+                      <span>Winner: <strong className="font-mono">[{r.resultNumber || r.result?.winningNumber}]</strong></span>
+                      {(r.resultColor || r.result?.resultColor) && (
+                        <span className={`px-1 rounded text-[9px] font-black ${
+                          (r.resultColor || r.result?.resultColor) === 'GREEN'
+                            ? 'bg-emerald-500/20 text-emerald-300'
+                            : 'bg-rose-500/20 text-rose-300'
+                        }`}>
+                          {r.resultColor || r.result?.resultColor}
+                        </span>
+                      )}
                     </div>
                   )}
                 </button>
@@ -229,7 +291,7 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
           )}
         </div>
 
-        {/* Center/Right Column: 00-99 Winning Number Board & Declaration Execution */}
+        {/* Center/Right Column: Declaration Controls & Live Liability Preview */}
         <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-5">
           {activeRound ? (
             <>
@@ -274,13 +336,25 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
                     <CheckCircle2 className="w-5 h-5 shrink-0" />
                     <span>This round is fully settled and COMPLETED</span>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 flex-wrap">
                     <div>
                       <span className="text-xs text-zinc-400 block">Winning Number</span>
                       <span className="text-3xl font-black font-mono text-emerald-300 bg-emerald-900/40 px-3 py-1 rounded-lg border border-emerald-500/50 inline-block mt-1">
                         {activeRound.resultNumber || activeRound.result?.winningNumber}
                       </span>
                     </div>
+
+                    <div>
+                      <span className="text-xs text-zinc-400 block">Result Color</span>
+                      <span className={`text-xl font-black font-mono px-3 py-1.5 rounded-lg border inline-block mt-1 ${
+                        (activeRound.resultColor || activeRound.result?.resultColor) === 'GREEN'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                      }`}>
+                        {activeRound.resultColor || activeRound.result?.resultColor || 'GREEN'}
+                      </span>
+                    </div>
+
                     {activeRound.result?.summary && (
                       <div className="text-xs text-zinc-300 space-y-1">
                         <div>
@@ -315,32 +389,96 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
                   </p>
                 </div>
               ) : (
-                /* FROZEN Round: Master 00-99 Selector */
-                <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
-                        Select Exactly One Winning Number (00–99)
-                      </span>
-                      <span className="text-[11px] text-zinc-400">
-                        Numbers 00–49 are Green (qualify for 80% Green Protection in Hourly Dhamaka)
+                /* FROZEN Round: Master Explicit 2-Value Declaration & Risk Preview */
+                <div className="space-y-5">
+                  {/* Task 1 — MASTER RESULT UI */}
+                  <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-5 space-y-4">
+                    <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3">
+                      <div>
+                        <h4 className="text-sm font-black uppercase tracking-wider text-zinc-100 flex items-center gap-2">
+                          <Trophy className="w-4 h-4 text-amber-400" />
+                          <span>GAME RESULT</span>
+                        </h4>
+                        <p className="text-[11px] text-zinc-400 mt-0.5">
+                          Explicit Master declaration. Winning Number and Result Color are strictly independent.
+                        </p>
+                      </div>
+                      <span className="text-xs text-zinc-400 font-mono bg-zinc-900 px-3 py-1 rounded-lg border border-zinc-800">
+                        {activeRound.gameName} — Round #{activeRound.roundNumber}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-400">Selected Winner:</span>
-                      <span className="font-mono text-lg font-black px-3 py-1 rounded-lg bg-amber-500 text-zinc-950">
-                        {winningNumber || '--'}
-                      </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Winning Number Selector */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
+                          Winning Number:
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`font-mono text-2xl font-black px-4 py-2 rounded-xl border ${
+                              winningNumber
+                                ? 'bg-amber-400/10 border-amber-500/40 text-amber-400'
+                                : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+                            }`}
+                          >
+                            {winningNumber || '--'}
+                          </span>
+                          <span className="text-xs text-zinc-400">
+                            {winningNumber ? 'Click any number in grid below to change' : 'Select a number from 00–99 below'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Result Color: [ GREEN ] [ RED ] */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-zinc-300 uppercase tracking-wider block">
+                          Result Color:
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setResultColor('GREEN')}
+                            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 border ${
+                              resultColor === 'GREEN'
+                                ? 'bg-emerald-500 text-zinc-950 border-emerald-400 ring-2 ring-emerald-400/50 shadow-lg shadow-emerald-500/20'
+                                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/30'
+                            }`}
+                          >
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block" />
+                            <span>GREEN</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setResultColor('RED')}
+                            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center justify-center gap-2 border ${
+                              resultColor === 'RED'
+                                ? 'bg-rose-500 text-zinc-950 border-rose-400 ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/20'
+                                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-rose-400 hover:border-rose-500/30'
+                            }`}
+                          >
+                            <span className="w-2.5 h-2.5 rounded-full bg-rose-400 inline-block" />
+                            <span>RED</span>
+                          </button>
+                        </div>
+                        <span className="text-[10px] text-zinc-500 block">
+                          {resultColor
+                            ? `Explicit color selected: ${resultColor}`
+                            : 'Required: select GREEN or RED'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* 10x10 Number Board for Master */}
-                  <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800 max-h-72 overflow-y-auto">
-                    <div className="grid grid-cols-10 gap-1 sm:gap-1.5">
+                  {/* 10x10 Number Board for Master (Neutral 00–99 Selector) */}
+                  <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800">
+                    <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider block mb-2">
+                      Select Winning Number (00–99):
+                    </span>
+
+                    <div className="grid grid-cols-10 gap-1 sm:gap-1.5 max-h-56 overflow-y-auto pr-1">
                       {Array.from({ length: 100 }, (_, i) => {
                         const numStr = i.toString().padStart(2, '0');
-                        const isGreen = i < 50;
                         const isSelected = winningNumber === numStr;
 
                         return (
@@ -348,11 +486,9 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
                             key={numStr}
                             type="button"
                             onClick={() => setWinningNumber(numStr)}
-                            className={`h-9 sm:h-10 rounded-lg font-mono text-xs sm:text-sm font-black transition-all cursor-pointer flex flex-col items-center justify-center ${
+                            className={`h-8 sm:h-9 rounded-lg font-mono text-xs font-black transition-all cursor-pointer flex items-center justify-center ${
                               isSelected
                                 ? 'bg-amber-400 text-zinc-950 scale-105 ring-2 ring-amber-300 shadow-lg font-black z-10'
-                                : isGreen && activeRound.gameId === 'hourly_dhamaka'
-                                ? 'bg-emerald-950/50 text-emerald-300 hover:bg-emerald-900/60 border border-emerald-800/40'
                                 : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800 border border-zinc-800'
                             }`}
                           >
@@ -363,26 +499,156 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
                     </div>
                   </div>
 
-                  {/* Execution Action Button */}
+                  {/* ========================================================== */}
+                  {/* TASK 8 — MASTER PREVIEW */}
+                  {/* ========================================================== */}
+                  {winningNumber && resultColor && (
+                    <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4 text-amber-400" />
+                          <h4 className="text-xs font-bold text-zinc-200 uppercase tracking-wider">
+                            Settlement Liability Preview
+                          </h4>
+                        </div>
+                        {calculatingLiability && (
+                          <span className="text-[10px] text-zinc-400 flex items-center gap-1">
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            Calculating...
+                          </span>
+                        )}
+                      </div>
+
+                      {liabilityPreview ? (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            {/* Winning Number & Color */}
+                            <div className="bg-zinc-900 p-2.5 rounded-lg border border-zinc-800">
+                              <span className="text-[10px] uppercase font-bold text-zinc-400 block">
+                                Result
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-base font-black font-mono text-amber-400">
+                                  #{liabilityPreview.winningNumber}
+                                </span>
+                                <span
+                                  className={`text-xs font-black px-1.5 py-0.5 rounded ${
+                                    liabilityPreview.resultColor === 'GREEN'
+                                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                      : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                                  }`}
+                                >
+                                  {liabilityPreview.resultColor}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-zinc-500">
+                                Declared result values
+                              </span>
+                            </div>
+
+                            {/* Total Entries & Stake */}
+                            <div className="bg-zinc-900 p-2.5 rounded-lg border border-zinc-800">
+                              <span className="text-[10px] uppercase font-bold text-zinc-400 block">
+                                Total Entries / Stake
+                              </span>
+                              <span className="text-base font-black font-mono text-zinc-200 block mt-0.5">
+                                ₹{liabilityPreview.totalStake.toLocaleString()}
+                              </span>
+                              <span className="text-[10px] text-zinc-500">
+                                {liabilityPreview.totalEntries ?? activeRound.entriesCount} round entries
+                              </span>
+                            </div>
+
+                            {/* Winning Number Liability (90x) */}
+                            <div className="bg-zinc-900 p-2.5 rounded-lg border border-zinc-800">
+                              <span className="text-[10px] uppercase font-bold text-zinc-400 block">
+                                Winning-Number (90×)
+                              </span>
+                              <span className="text-base font-black font-mono text-emerald-400 block mt-0.5">
+                                ₹{liabilityPreview.total90xPayout.toLocaleString()}
+                              </span>
+                              <span className="text-[10px] text-zinc-500">
+                                {liabilityPreview.winningBidsCount} matching #{winningNumber}
+                              </span>
+                            </div>
+
+                            {/* Protection Liability (Hourly Dhamaka only) */}
+                            <div className="bg-zinc-900 p-2.5 rounded-lg border border-zinc-800">
+                              <span className="text-[10px] uppercase font-bold text-zinc-400 block">
+                                Protection Liability (80%)
+                              </span>
+                              <span className="text-base font-black font-mono text-cyan-300 block mt-0.5">
+                                ₹{liabilityPreview.totalProtectionRefund.toLocaleString()}
+                              </span>
+                              <span className="text-[10px] text-zinc-500">
+                                {activeRound.gameId === 'hourly_dhamaka'
+                                  ? `${liabilityPreview.matchingColorBidsCount} matching ${resultColor} selections`
+                                  : '₹0 for Game X/Y/Z (Hourly only)'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Summary Bar */}
+                          <div className="bg-zinc-900/80 p-3 rounded-lg border border-zinc-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                            <div className="flex items-center gap-4">
+                              <div>
+                                <span className="text-zinc-400 mr-1.5">Total Settlement Liability:</span>
+                                <strong className="text-rose-400 font-mono">
+                                  ₹{liabilityPreview.totalLiability.toLocaleString()}
+                                </strong>
+                              </div>
+                              <div>
+                                <span className="text-zinc-400 mr-1.5">Net House P&L:</span>
+                                <strong
+                                  className={`font-mono ${
+                                    liabilityPreview.netHousePnL >= 0
+                                      ? 'text-emerald-400'
+                                      : 'text-rose-400'
+                                  }`}
+                                >
+                                  {liabilityPreview.netHousePnL >= 0 ? '+' : ''}
+                                  ₹{liabilityPreview.netHousePnL.toLocaleString()}
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-2 text-xs text-zinc-400">
+                          Calculating settlement preview...
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* TASK 9 — Execution Action Button */}
                   <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-3">
                     <div className="text-xs text-zinc-400">
                       <div>
                         Target: <strong className="text-zinc-200">{activeRound.gameName}</strong>
                       </div>
                       <div>
-                        Winning Number:{' '}
+                        Declaration:{' '}
                         <strong className="text-amber-400 font-mono">
-                          {winningNumber ? `[${winningNumber}]` : 'None Selected'}
-                        </strong>
+                          {winningNumber ? `[${winningNumber}]` : 'Select Number'}
+                        </strong>{' '}
+                        +{' '}
+                        {resultColor ? (
+                          <strong className={resultColor === 'GREEN' ? 'text-emerald-400' : 'text-rose-400'}>
+                            [{resultColor}]
+                          </strong>
+                        ) : (
+                          <span className="text-zinc-500">Select Color</span>
+                        )}
                       </div>
                     </div>
 
                     <button
                       type="button"
-                      onClick={handleDeclareResult}
-                      disabled={declaring || !winningNumber}
+                      onClick={handleOpenConfirmModal}
+                      disabled={declaring || !winningNumber || !resultColor}
                       className={`px-6 py-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                        !winningNumber || declaring
+                        !winningNumber || !resultColor || declaring
                           ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
                           : 'bg-gradient-to-r from-amber-500 to-amber-400 text-zinc-950 hover:brightness-110 shadow-lg shadow-amber-500/20 active:scale-[0.98]'
                       }`}
@@ -395,11 +661,119 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
                       ) : (
                         <>
                           <Trophy className="w-4 h-4" />
-                          <span>Confirm #{winningNumber} & Execute Settlement</span>
+                          <span>DECLARE RESULT</span>
                         </>
                       )}
                     </button>
                   </div>
+
+                  {/* TASK 9 — CONFIRMATION MODAL */}
+                  {showConfirmModal && (
+                    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                      <div className="bg-zinc-900 border border-amber-500/40 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0">
+                            <Trophy className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-base font-black text-zinc-100 font-display">
+                              CONFIRM RESULT DECLARATION
+                            </h3>
+                            <p className="text-xs text-zinc-400">
+                              {activeRound.gameName} — Round #{activeRound.roundNumber}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-3">
+                          <div className="flex justify-between items-center py-1 border-b border-zinc-800/80">
+                            <span className="text-xs text-zinc-400">Winning Number:</span>
+                            <span className="font-mono text-xl font-black text-amber-400">
+                              {winningNumber}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center py-1 border-b border-zinc-800/80">
+                            <span className="text-xs text-zinc-400">Result Color:</span>
+                            <span
+                              className={`font-mono text-sm font-black px-3 py-1 rounded-lg ${
+                                resultColor === 'GREEN'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                  : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                              }`}
+                            >
+                              {resultColor}
+                            </span>
+                          </div>
+
+                          {liabilityPreview && (
+                            <>
+                              <div className="flex justify-between items-center py-1 border-b border-zinc-800/80 text-xs">
+                                <span className="text-zinc-400">Total Round Entries:</span>
+                                <span className="font-mono font-bold text-zinc-200">
+                                  {liabilityPreview.totalEntries ?? activeRound.entriesCount}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center py-1 border-b border-zinc-800/80 text-xs">
+                                <span className="text-zinc-400">Total Stake Pool:</span>
+                                <span className="font-mono font-bold text-zinc-200">
+                                  ₹{liabilityPreview.totalStake.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center py-1 border-b border-zinc-800/80 text-xs">
+                                <span className="text-zinc-400">Winning Number (90×) Liability:</span>
+                                <span className="font-mono font-bold text-emerald-400">
+                                  ₹{liabilityPreview.total90xPayout.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center py-1 border-b border-zinc-800/80 text-xs">
+                                <span className="text-zinc-400">Protection Liability:</span>
+                                <span className="font-mono font-bold text-cyan-300">
+                                  ₹{liabilityPreview.totalProtectionRefund.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="flex justify-between items-center py-1 text-xs font-bold">
+                                <span className="text-zinc-300">Total Settlement Liability:</span>
+                                <span className="font-mono text-rose-400">
+                                  ₹{liabilityPreview.totalLiability.toLocaleString()}
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        <div className="text-[11px] text-zinc-400 bg-amber-500/10 p-3 rounded-lg border border-amber-500/20">
+                          ⚠️ This will finalize the round, credit winning players' Main Wallets, and prevent further edits. Duplicate settlement is strictly prevented.
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmModal(false)}
+                            disabled={declaring}
+                            className="flex-1 py-2.5 rounded-xl text-xs font-bold bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={confirmAndExecuteSettlement}
+                            disabled={declaring}
+                            className="flex-1 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 text-zinc-950 hover:brightness-110 shadow-lg shadow-amber-500/20 transition cursor-pointer flex items-center justify-center gap-2"
+                          >
+                            {declaring ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>Settling...</span>
+                              </>
+                            ) : (
+                              <span>DECLARE RESULT</span>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -416,11 +790,20 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                     <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
                       <span className="text-[10px] uppercase font-bold text-zinc-400 block">Winning Number</span>
                       <span className="font-mono font-black text-xl text-emerald-300">
                         {settlementSuccessSummary.winningNumber}
+                      </span>
+                    </div>
+
+                    <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+                      <span className="text-[10px] uppercase font-bold text-zinc-400 block">Result Color</span>
+                      <span className={`font-mono font-black text-xl ${
+                        settlementSuccessSummary.resultColor === 'GREEN' ? 'text-emerald-400' : 'text-rose-400'
+                      }`}>
+                        {settlementSuccessSummary.resultColor || resultColor}
                       </span>
                     </div>
 
@@ -552,11 +935,22 @@ export const MasterSettlementPanel: React.FC<MasterSettlementPanelProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-right">
-                    <span className="text-xs text-zinc-400 block">Winner</span>
-                    <span className="font-mono font-black text-xl text-emerald-400">
-                      [{res.winningNumber}]
-                    </span>
+                  <div className="text-right flex items-center gap-2">
+                    <div>
+                      <span className="text-[10px] text-zinc-400 block">Winner</span>
+                      <span className="font-mono font-black text-xl text-emerald-400">
+                        [{res.winningNumber}]
+                      </span>
+                    </div>
+                    {res.resultColor && (
+                      <span className={`px-2 py-1 rounded text-xs font-black font-mono border ${
+                        res.resultColor === 'GREEN'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                      }`}>
+                        {res.resultColor}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))
