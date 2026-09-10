@@ -87,6 +87,23 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of record creation" }
       },
       "required": ["resultId", "gameId", "roundId", "winningNumber", "declaredBy", "declaredAt", "ruleVersion", "status", "settlementId", "createdAt"]
+    },
+    "ReferralRecord": {
+      "title": "ReferralRecord",
+      "description": "Server-authoritative referral relationship and status record in referrals/{referralId}. Non-writable by client.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique referral record identifier" },
+        "referrerUserId": { "type": "string", "description": "User UID of the player who referred" },
+        "referredUserId": { "type": "string", "description": "User UID of the newly registered referred player" },
+        "referralCode": { "type": "string", "description": "Referral code redeemed" },
+        "status": { "type": "string", "enum": ["REGISTERED", "QUALIFIED", "COMPLETED", "CANCELLED"], "description": "Relationship lifecycle status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of relationship establishment" },
+        "idempotencyKey": { "type": "string", "description": "Unique key preventing duplicate processing" },
+        "rewardAmount": { "type": "number", "minimum": 0, "description": "Virtual demo credits amount credited to Main Wallet" },
+        "rewardCredited": { "type": "boolean", "description": "Whether referral reward has been credited" }
+      },
+      "required": ["id", "referrerUserId", "referredUserId", "referralCode", "status", "createdAt", "idempotencyKey"]
     }
   },
   "firestore": {
@@ -109,6 +126,10 @@
     "/gameResults/{resultId}": {
       "schema": "GameResult",
       "description": "Publicly readable round result and settlement audit record. Non-writable by client."
+    },
+    "/referrals/{referralId}": {
+      "schema": "ReferralRecord",
+      "description": "Authoritative referral relationship record. Read-only by referrer or referred user. Non-writable by client."
     }
   }
 }

@@ -52,8 +52,8 @@ service cloud.firestore {
         && (data.createdAt is string || data.createdAt is timestamp)
         && (data.updatedAt is string || data.updatedAt is timestamp)
         && data.keys().hasAll(['uid', 'phoneNumber', 'displayName', 'role', 'status', 'createdAt', 'updatedAt'])
-        // Guard against any credential or elevated privilege injection
-        && !data.keys().hasAny(['password', 'pass', 'hash', 'salt', 'otp', 'code', 'token', 'isAdmin', 'admin', 'permissions']);
+        // Guard against any credential, referral spoofing, or elevated privilege injection
+        && !data.keys().hasAny(['password', 'pass', 'hash', 'salt', 'otp', 'code', 'token', 'isAdmin', 'admin', 'permissions', 'referredByUserId', 'referrerUserId', 'referralRewardAmount', 'walletBalance', 'balance', 'heldBalance']);
     }
 
     // Default catch-all: Deny all reads and writes across the entire database
@@ -167,6 +167,19 @@ service cloud.firestore {
     // ============================================================================
     match /gameResults/{resultId} {
       allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+
+    // ============================================================================
+    // REFERRALS COLLECTION: referrals/{referralId}
+    // Master Security Mandates (Step 16A - Referral System Foundation):
+    // 1. Players can only read their own referral records (as referrer or referred user).
+    // 2. Direct client creation, update, and deletion are strictly FORBIDDEN.
+    // 3. All referral relationships, codes, and rewards are server-authoritative.
+    // ============================================================================
+    match /referrals/{referralId} {
+      allow get: if isAuthenticated() && (resource.data.referrerUserId == request.auth.uid || resource.data.referredUserId == request.auth.uid);
+      allow list: if isAuthenticated();
       allow create, update, delete: if false;
     }
   }

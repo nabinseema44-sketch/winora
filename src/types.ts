@@ -81,7 +81,9 @@ export interface UserProfile {
   assignedAgentId?: string;
   assignedAgentName?: string;
   assignedAgentPhone?: string;
-  referrerId?: string;
+  referralCode?: string;         // Unique, stable player referral code (e.g. WIN78ARJ1)
+  referredByUserId?: string;     // Single established referrer user ID (immutable, max 1)
+  referrerId?: string;           // Legacy reference maintained for compatibility
   hasMadeFirstDeposit?: boolean;
   stats: {
     gamesPlayed: number;
@@ -89,6 +91,21 @@ export interface UserProfile {
     favoriteCategory: string;
     winRate: string;
   };
+}
+
+export type ReferralStatus = 'REGISTERED' | 'QUALIFIED' | 'COMPLETED' | 'CANCELLED';
+
+export interface ReferralRecord {
+  id: string;                    // Unique referral record ID
+  referrerUserId: string;        // Referrer user ID
+  referredUserId: string;        // Referred user ID
+  referralCode: string;          // Referral code used at registration
+  status: ReferralStatus;        // Relationship lifecycle status
+  createdAt: string;             // ISO timestamp
+  idempotencyKey: string;        // Deduplication key
+  rewardAmount?: number;         // Demo credits to Main Wallet when active
+  rewardCredited?: boolean;      // Whether reward has been credited
+  rewardCreditedAt?: string;     // ISO timestamp when credited
 }
 
 export type WinoraGameId = 'game_x' | 'game_y' | 'game_z' | 'hourly_dhamaka';

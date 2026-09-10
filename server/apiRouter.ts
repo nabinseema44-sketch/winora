@@ -4,6 +4,7 @@ import { getPaymentProvider } from './paymentProvider.ts';
 import { paymentConfigService } from './paymentConfigService.ts';
 import { serverGameEntryService } from './gameEntryService.ts';
 import { serverResultSettlementService } from './resultSettlementService.ts';
+import { serverReferralService } from './referralService.ts';
 
 export const apiRouter = Router();
 
@@ -320,6 +321,169 @@ apiRouter.post('/game-entry/submit', (req: Request, res: Response) => {
       success: false,
       errorCode: 'SERVER_ERROR',
       message: 'An unexpected error occurred while processing game entry.',
+    });
+  }
+});
+
+/**
+ * ============================================================================
+ * WINORA STEP 16A — REFERRAL SYSTEM FOUNDATION APIS
+ * Server-authoritative referral code resolution, relationship establishment,
+ * loop prevention, single-referrer enforcement, and idempotency protection.
+ * ============================================================================
+ */
+
+/**
+ * Resolve a referral code (case-insensitive)
+ * Returns safe public information (referrer display name) without exposing internal DB IDs.
+ */
+apiRouter.get('/referral/resolve/:code', (req: Request, res: Response) => {
+  const { code } = req.params;
+  const result = serverReferralService.resolveReferralCode(code);
+  if (!result.valid) {
+    res.status(404).json({
+      success: false,
+      valid: false,
+      message: result.error || 'Invalid referral code.',
+    });
+    return;
+  }
+
+  res.json({
+    success: true,
+    valid: true,
+    referrerDisplayName: result.referrerDisplayName,
+    referralCode: result.referralCode,
+  });
+});
+
+/**
+ * Get public referral system configuration
+ */
+apiRouter.get('/referral/config', (req: Request, res: Response) => {
+  const config = serverReferralService.getConfig();
+  res.json({
+    success: true,
+    config,
+  });
+});
+
+/**
+ * Get user referral profile and referrals list
+ */
+apiRouter.get('/referral/user/:userId', (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const user = serverReferralService.getUserProfile(userId);
+  if (!user) {
+    res.status(404).json({
+      success: false,
+      message: `User ${userId} not found in referral registry.`,
+    });
+    return;
+  }
+
+  const referrals = serverReferralService.getReferralsByReferrer(userId);
+  const relationshipRecord = serverReferralService.getReferralRecordByReferred(userId);
+
+  res.json({
+    success: true,
+    userProfile: user,
+    referralRecord: relationshipRecord || null,
+    referralsCount: referrals.length,
+    referrals,
+  });
+});
+
+/**
+ * Server-Authoritative Referral Relationship Creation
+ * Validates:
+ * - Code exists
+ * - No self-referral
+ * - User does not already have a referrer (immutable, max 1)
+ * - No referral loops
+ * - Idempotent
+ */
+apiRouter.post('/referral/create-relationship', (req: Request, res: Response) => {
+  try {
+    const { referredUserId, referralCode } = req.body;
+    if (!referredUserId || !referralCode) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'MISSING_PARAMETERS',
+        message: 'referredUserId and referralCode are required.',
+      });
+      return;
+    }
+
+    const result = serverReferralService.createReferralRelationship({
+      referredUserId,
+      referralCode,
+    });
+
+    if (!result.success) {
+      res.status(400).json({
+        success: false,
+        errorCode: result.errorCode,
+        message: result.error,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'Referral relationship established successfully.',
+      referralRecord: result.referralRecord,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      errorCode: 'SERVER_ERROR',
+      message: error.message || 'Failed to establish referral relationship.',
+    });
+  }
+});
+
+/**
+ * Register Player in Referral Service
+ */
+apiRouter.post('/referral/register-player', (req: Request, res: Response) => {
+  try {
+    const { userId, displayName, referralCodeToRedeem } = req.body;
+    if (!userId) {
+      res.status(400).json({
+        success: false,
+        errorCode: 'MISSING_USER_ID',
+        message: 'userId is required.',
+      });
+      return;
+    }
+
+    const result = serverReferralService.registerUser({
+      userId,
+      displayName: displayName || 'WINORA Player',
+      referralCodeToRedeem,
+    });
+
+    if (!result.success) {
+      res.status(400).json({
+        success: false,
+        errorCode: result.errorCode,
+        message: result.error,
+        userProfile: result.userProfile,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      userProfile: result.userProfile,
+      referralRecord: result.referralRecord,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      errorCode: 'SERVER_ERROR',
+      message: error.message || 'Failed to register player in referral service.',
     });
   }
 });
