@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/apiRouter.ts';
+import { coinRouter } from './server/coinRouter.ts';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -12,21 +13,22 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT || 3000);
 
-  // JSON and URL-encoded body parsers for incoming API and webhook requests
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: '256kb' }));
+  app.use(express.urlencoded({ extended: true, limit: '256kb' }));
 
-  // API Routes mounted first
+  // New secure prototype wallet API. Every coin operation requires a Firebase ID token.
+  app.use('/api/coin', coinRouter);
+
+  // Existing application APIs remain available for the current game UI.
   app.use('/api', apiRouter);
 
-  // Fallback API 404
-  app.all('/api/*', (req, res) => {
+  app.all('/api/*', (_req, res) => {
     res.status(404).json({ error: 'API endpoint not found' });
   });
 
-  // Vite middleware for development or static serving for production
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -36,7 +38,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
