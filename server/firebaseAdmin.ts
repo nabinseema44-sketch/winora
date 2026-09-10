@@ -1,21 +1,17 @@
+import 'dotenv/config';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 function getCredential() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (raw) {
-    const parsed = JSON.parse(raw);
-    return cert(parsed);
-  }
-
-  // Supports Google-hosted environments using Application Default Credentials.
-  return undefined;
+  if (!raw) return undefined;
+  const parsed = JSON.parse(raw);
+  return cert(parsed);
 }
 
-const app = getApps().length
-  ? getApps()[0]
-  : initializeApp(getCredential() ? { credential: getCredential() } : undefined);
+const credential = getCredential();
+const app = getApps().length ? getApps()[0] : initializeApp(credential ? { credential } : undefined);
 
 export const adminAuth = getAuth(app);
 export const adminDb = getFirestore(app);
