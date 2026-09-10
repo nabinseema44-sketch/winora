@@ -1085,8 +1085,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
             <>
               <div className="flex flex-col">
                 <span className="text-xs text-zinc-400">
-                  Demo Balance: ₹{availableDemoBalance.toLocaleString()} (
-                  {walletChoice === 'bonus' ? 'Bonus Wallet' : 'Main Wallet'})
+                  Demo Balance: ₹{availableDemoBalance.toLocaleString()} (Main Wallet)
                 </span>
                 {hasInsufficientCredits && (
                   <span className="text-xs text-rose-400 font-bold">

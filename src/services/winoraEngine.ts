@@ -1051,7 +1051,7 @@ class WinoraStateManager {
     this.masterProfile.mainBalance -= amount;
     this.masterProfile.walletBalance = this.masterProfile.mainBalance;
     agent.mainBalance += amount;
-    agent.walletBalance = agent.mainBalance + agent.bonusBalance;
+    agent.walletBalance = agent.mainBalance + (agent.bonusBalance || 0);
 
     this.history.unshift({
       id: `act-mtransfer-${Date.now()}`,

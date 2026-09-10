@@ -77,7 +77,7 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({
   const totalSystemCoins =
     currentUser.mainBalance +
     agents.reduce((sum, a) => sum + a.mainBalance, 0) +
-    players.reduce((sum, p) => sum + p.mainBalance + p.bonusBalance, 0);
+    players.reduce((sum, p) => sum + p.mainBalance + (p.bonusBalance || 0), 0);
 
   const activePlayersCount = players.filter((p) => p.status === 'active').length;
   const activeAgentsCount = agents.filter((a) => a.status === 'active').length;

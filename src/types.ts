@@ -69,6 +69,7 @@ export interface UserProfile {
   phoneNumber: string;
   walletBalance: number; // Main Wallet demo credit balance
   mainBalance: number;   // Main Wallet demo credits
+  bonusBalance?: number; // Optional Bonus Wallet demo credits
   currency: CurrencyConfig;
   avatar: string;
   tier: 'Bronze' | 'Silver' | 'Gold' | 'Diamond';
