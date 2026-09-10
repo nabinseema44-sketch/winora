@@ -1,4 +1,6 @@
-export type NavPage = 'home' | 'games' | 'deposit' | 'wallet' | 'profile' | 'login' | 'register' | 'settings';
+export type NavPage = 'home' | 'games' | 'deposit' | 'wallet' | 'profile' | 'login' | 'register' | 'settings' | 'history' | 'agent' | 'master' | 'sql-schema';
+
+export type UserRole = 'master' | 'agent' | 'user' | 'player';
 
 export type DepositProviderType = 'external_link' | 'gateway' | 'none';
 export type WithdrawalProviderType = 'banking_payout' | 'manual_review' | 'external_link';
@@ -43,7 +45,7 @@ export interface PublicPaymentConfig {
   currency: string;
 }
 
-export type GameCategory = 'all' | 'slots' | 'crash' | 'table' | 'arcade' | 'dice';
+export type GameCategory = 'all' | 'slots' | 'crash' | 'table' | 'arcade' | 'dice' | 'numbers';
 
 export interface CurrencyConfig {
   code: string;
@@ -65,20 +67,121 @@ export interface UserProfile {
   id: string;
   displayName: string;
   phoneNumber: string;
-  walletBalance: number;
+  walletBalance: number; // Backwards-compatible (main balance)
+  mainBalance: number;   // Withdrawable Main Wallet
+  bonusBalance: number;  // Non-withdrawable Bonus Wallet (Play-Only)
   currency: CurrencyConfig;
   avatar: string;
   tier: 'Bronze' | 'Silver' | 'Gold' | 'Diamond';
   joinedDate: string;
   level: number;
-  role?: 'player';
-  status?: 'active' | 'suspended';
+  role: UserRole;
+  status: 'active' | 'blocked' | 'suspended';
+  address?: string;
+  pincode?: string;
+  assignedAgentId?: string;
+  assignedAgentName?: string;
+  assignedAgentPhone?: string;
+  referrerId?: string;
+  hasMadeFirstDeposit?: boolean;
   stats: {
     gamesPlayed: number;
     highestVirtualWin: number;
     favoriteCategory: string;
     winRate: string;
   };
+}
+
+export type WinoraGameId = 'game_x' | 'game_y' | 'game_z' | 'hourly_dhamaka';
+
+export interface WinoraGameConfig {
+  id: WinoraGameId;
+  name: string;
+  code: string;
+  subtitle: string;
+  payoutMultiplier: number; // 90x
+  hasGreenRefund: boolean;  // true for Hourly Dhamaka (80% Green refund)
+  refundPercentage?: number; // 80%
+  description: string;
+  accentColor: string;
+  intervalMinutes: number; // e.g. 60 min for hourly
+}
+
+export interface GameRound {
+  id: string;
+  gameId: WinoraGameId;
+  gameName: string;
+  roundNumber: number;
+  freezeTime: string;  // ISO timestamp (15 minutes prior to declareTime)
+  declareTime: string; // ISO timestamp
+  status: 'open' | 'frozen' | 'completed';
+  resultNumber?: number | null;
+  totalBidsPool: number;
+  declaredAt?: string;
+}
+
+export interface BidRecord {
+  id: string;
+  gameId: WinoraGameId;
+  gameName: string;
+  roundId: string;
+  userId: string;
+  userName: string;
+  number: number; // 0 to 99
+  amount: number;
+  walletUsed: 'main' | 'bonus';
+  isGreen: boolean; // For Hourly Dhamaka: 50 green (00-49), 50 red (50-99)
+  status: 'placed' | 'won' | 'lost' | 'refunded';
+  payoutAmount: number;
+  refundAmount: number;
+  createdAt: string;
+}
+
+export interface HandshakeTransaction {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderPhone: string;
+  receiverId: string; // Assigned Agent ID
+  agentName: string;
+  agentPhone?: string;
+  amount: number;
+  type: 'deposit' | 'withdrawal';
+  status: 'pending' | 'agent_approved' | 'completed' | 'rejected';
+  createdAt: string;
+  completedAt?: string;
+  notes?: string;
+  isFirstDeposit?: boolean;
+  payoutDetails?: {
+    upiId?: string;
+    accountNumber?: string;
+    ifsc?: string;
+  };
+}
+
+export interface ActivityHistoryItem {
+  id: string;
+  type: 'bid' | 'win' | 'refund' | 'referral' | 'deposit' | 'withdrawal';
+  title: string;
+  amount: number;
+  wallet: 'main' | 'bonus';
+  status: 'completed' | 'pending' | 'rejected' | 'won' | 'refunded';
+  timestamp: string;
+  details: string;
+  gameName?: string;
+  referenceId?: string;
+}
+
+export interface NumberRiskItem {
+  number: number;
+  formattedNumber: string; // '00', '01', ... '99'
+  isGreen: boolean;
+  totalBids: number;
+  bidCount: number;
+  payout90x: number;
+  greenRefunds: number;
+  netMasterPnL: number;
+  isWinning?: boolean;
 }
 
 export interface GameItem {

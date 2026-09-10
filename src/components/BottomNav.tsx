@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Gamepad2, Wallet, User } from 'lucide-react';
+import { Gamepad2, Wallet, User, History } from 'lucide-react';
 import { NavPage } from '../types.ts';
 
 interface BottomNavProps {
@@ -9,8 +9,8 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ currentPage, onNavigate }) => {
   const items: { id: NavPage; label: string; icon: React.ReactNode }[] = [
-    { id: 'home', label: 'Home', icon: <Home className="w-5 h-5" /> },
     { id: 'games', label: 'Games', icon: <Gamepad2 className="w-5 h-5" /> },
+    { id: 'history', label: 'Ledger', icon: <History className="w-5 h-5" /> },
     { id: 'wallet', label: 'Wallet', icon: <Wallet className="w-5 h-5" /> },
     { id: 'profile', label: 'Profile', icon: <User className="w-5 h-5" /> },
   ];

@@ -1,6 +1,7 @@
 /**
- * @license
- * SPDX-License-Identifier: Apache-2.0
+ * WINORA Web Application Entry Component
+ * Incorporating 00-99 Multi-Number Game Matrix, Dual Wallet Structure,
+ * 15-Minute Bidding Cutoff, Handshake Verification, and Master 00-99 Risk Engine.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -8,6 +9,8 @@ import { DisclaimerBanner } from './components/DisclaimerBanner.tsx';
 import { Navbar } from './components/Navbar.tsx';
 import { BottomNav } from './components/BottomNav.tsx';
 import { GamePreviewModal } from './components/GamePreviewModal.tsx';
+import { DualConfirmationHandshakeModal } from './components/DualConfirmationHandshakeModal.tsx';
+import { SqlSchemaModal } from './components/SqlSchemaModal.tsx';
 import { Logo } from './components/Logo.tsx';
 
 import { HomePage } from './pages/HomePage.tsx';
@@ -17,27 +20,43 @@ import { DepositPage } from './pages/DepositPage.tsx';
 import { ProfilePage } from './pages/ProfilePage.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
 import { RegisterPage } from './pages/RegisterPage.tsx';
+import { HistoryPage } from './pages/HistoryPage.tsx';
+import { AgentPortalPage } from './pages/AgentPortalPage.tsx';
+import { MasterPortalPage } from './pages/MasterPortalPage.tsx';
 
 import { DEFAULT_PLAYER_AVATAR, MOCK_GAMES, INITIAL_LEDGER } from './data/mockData.ts';
 import { GameItem, NavPage, UserProfile, WalletTransaction, CurrencyConfig, DEFAULT_CURRENCY } from './types.ts';
 import { CheckCircle2, Shield, Heart } from 'lucide-react';
 import { onAuthChange, logoutUser } from './firebase/authService.ts';
 import { getUserProfile, createUserProfile } from './firebase/firestoreService.ts';
+import { winoraEngine } from './services/winoraEngine.ts';
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<NavPage>('home');
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState<NavPage>('games');
+  const [user, setUser] = useState<UserProfile>(winoraEngine.getCurrentUser());
+  const [authLoading, setAuthLoading] = useState(false);
   const [games] = useState<GameItem[]>(MOCK_GAMES);
   const [ledger, setLedger] = useState<WalletTransaction[]>(INITIAL_LEDGER);
   const [selectedGame, setSelectedGame] = useState<GameItem | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Synchronize authenticated Firebase user session
+  // Modals
+  const [showHandshakeModal, setShowHandshakeModal] = useState(false);
+  const [handshakeInitialMode, setHandshakeInitialMode] = useState<'deposit' | 'withdrawal'>('deposit');
+  const [showSqlModal, setShowSqlModal] = useState(false);
+
+  // Sync state with winoraEngine
+  useEffect(() => {
+    const unsub = winoraEngine.subscribe(() => {
+      setUser({ ...winoraEngine.getCurrentUser() });
+    });
+    return () => unsub();
+  }, []);
+
+  // Firebase auth sync
   useEffect(() => {
     const unsubscribe = onAuthChange(async (firebaseUser) => {
       if (firebaseUser) {
-        // Attempt to fetch profile document from Cloud Firestore: users/{uid}
         try {
           const profile = await getUserProfile(firebaseUser.uid);
           const verifiedPhone = firebaseUser.phoneNumber || profile?.phoneNumber || '';
@@ -46,78 +65,25 @@ export default function App() {
             : 'WINORA Player';
 
           if (profile) {
-            setUser({
+            setUser((prev) => ({
+              ...prev,
               id: profile.uid,
               displayName: profile.displayName || firebaseUser.displayName || defaultName,
               phoneNumber: profile.phoneNumber || verifiedPhone,
               avatar: profile.avatar || DEFAULT_PLAYER_AVATAR,
-              walletBalance: 2500,
-              currency: DEFAULT_CURRENCY,
               tier: profile.tier || 'Bronze',
-              joinedDate: profile.createdAt 
-                ? new Date(profile.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) 
-                : 'Active',
-              level: profile.level || 1,
               role: profile.role || 'player',
               status: profile.status || 'active',
-              stats: {
-                gamesPlayed: 0,
-                highestVirtualWin: 0,
-                favoriteCategory: 'Crash Games',
-                winRate: '0%',
-              },
-            });
-          } else {
-            // Missing user document safe recovery: automatically provision in Firestore users/{uid}
-            const fallbackName = firebaseUser.displayName || defaultName;
-            await createUserProfile(firebaseUser.uid, {
-              phoneNumber: verifiedPhone,
-              displayName: fallbackName,
-              avatar: DEFAULT_PLAYER_AVATAR,
-            });
-            const fresh = await getUserProfile(firebaseUser.uid);
-            if (fresh) {
-              setUser({
-                id: fresh.uid,
-                displayName: fresh.displayName || fallbackName,
-                phoneNumber: fresh.phoneNumber || verifiedPhone,
-                avatar: fresh.avatar || DEFAULT_PLAYER_AVATAR,
-                walletBalance: 2500,
-                currency: DEFAULT_CURRENCY,
-                tier: fresh.tier || 'Bronze',
-                joinedDate: fresh.createdAt 
-                  ? new Date(fresh.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) 
-                  : 'Active',
-                level: fresh.level || 1,
-                role: fresh.role || 'player',
-                status: fresh.status || 'active',
-                stats: {
-                  gamesPlayed: 0,
-                  highestVirtualWin: 0,
-                  favoriteCategory: 'Crash Games',
-                  winRate: '0%',
-                },
-              });
-            }
+            }));
           }
         } catch (err) {
-          console.error('[WINORA] Failed to load Firestore profile on auth state change:', err);
+          console.error('[WINORA] Firestore profile fetch error:', err);
         }
-      } else {
-        setUser(null);
       }
-      setAuthLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
-
-  // Authentication protection: route unauthenticated users away from protected pages
-  useEffect(() => {
-    if (!authLoading && !user && (currentPage === 'profile' || currentPage === 'wallet')) {
-      setCurrentPage('login');
-    }
-  }, [authLoading, user, currentPage]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -127,17 +93,9 @@ export default function App() {
   };
 
   const handleNavigate = (page: NavPage) => {
-    // Prevent unauthenticated users from accessing authenticated pages (wallet, profile)
-    if (!user && (page === 'wallet' || page === 'profile')) {
-      showToast(`Please sign in to access your ${page === 'wallet' ? 'Account Wallet' : 'Profile'}.`);
-      setCurrentPage('login');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    // Prevent authenticated users from visiting login or register
-    if (user && (page === 'login' || page === 'register')) {
-      setCurrentPage('home');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (page === 'deposit') {
+      setHandshakeInitialMode('deposit');
+      setShowHandshakeModal(true);
       return;
     }
     setCurrentPage(page);
@@ -145,102 +103,67 @@ export default function App() {
   };
 
   const handleDepositInitiated = (newTx: WalletTransaction) => {
-    // Audit record appended to ledger
     setLedger([newTx, ...ledger]);
-    // Security Mandate: The client must NOT directly modify the money balance.
-    // In production, balance updates are performed strictly by trusted backend/payment-provider
-    // webhook callbacks after verified settlement.
-    showToast(`Deposit order logged (${newTx.referenceId}). Balance credits upon gateway settlement.`);
+    showToast(`Deposit request logged. Dual-confirmation required by assigned agent.`);
   };
 
   const handleWithdrawalRequested = (newTx: WalletTransaction) => {
-    // Payout request logged in ledger
     setLedger([newTx, ...ledger]);
-    // Security Mandate: Direct bank/UPI transfers are queued for backend verification.
-    showToast(`Withdrawal request submitted (${newTx.referenceId}). Queued for verification.`);
+    showToast(`Withdrawal request submitted. Held for agent handshake.`);
   };
 
   const handleCurrencyChange = (newCurrency: CurrencyConfig) => {
-    if (user) {
-      setUser({
-        ...user,
-        currency: newCurrency,
-      });
-      showToast(`Wallet currency changed to ${newCurrency.name}`);
-    }
+    setUser((prev) => ({ ...prev, currency: newCurrency }));
+    showToast(`Currency changed to ${newCurrency.name}`);
   };
 
   const handleBalanceUpdate = (newBalance: number) => {
-    setUser((prev) => {
-      if (!prev || prev.walletBalance === newBalance) return prev;
-      return { ...prev, walletBalance: newBalance };
-    });
+    setUser((prev) => ({ ...prev, mainBalance: newBalance, walletBalance: newBalance }));
   };
 
   const handleLoginSuccess = (displayName: string, phoneNumber: string = '+91 98765 43210') => {
-    if (!user) {
-      setUser({
-        id: `user-${Date.now().toString().slice(-6)}`,
-        displayName: displayName || 'WINORA Player',
-        phoneNumber: phoneNumber,
-        walletBalance: 2500,
-        currency: DEFAULT_CURRENCY,
-        avatar: DEFAULT_PLAYER_AVATAR,
-        tier: 'Bronze',
-        joinedDate: 'Active',
-        level: 1,
-        role: 'player',
-        status: 'active',
-        stats: {
-          gamesPlayed: 0,
-          highestVirtualWin: 0,
-          favoriteCategory: 'Crash Games',
-          winRate: '0%',
-        },
-      });
-    }
-    setCurrentPage('home');
+    setUser((prev) => ({
+      ...prev,
+      displayName,
+      phoneNumber,
+    }));
+    setCurrentPage('games');
     showToast(`Welcome back, ${displayName}!`);
   };
 
-  const handleRegisterSuccess = (displayName: string, phoneNumber: string = '+91 98765 43210', avatar: string = DEFAULT_PLAYER_AVATAR) => {
-    setUser({
-      id: `user-${Date.now().toString().slice(-6)}`,
-      displayName: displayName || 'New WINORA Player',
-      phoneNumber: phoneNumber,
-      walletBalance: 1000,
-      currency: DEFAULT_CURRENCY,
-      avatar: avatar || DEFAULT_PLAYER_AVATAR,
-      tier: 'Bronze',
-      joinedDate: 'Just now',
-      level: 1,
-      role: 'player',
-      status: 'active',
-      stats: {
-        gamesPlayed: 0,
-        highestVirtualWin: 0,
-        favoriteCategory: 'Arcade',
-        winRate: '0%',
-      },
-    });
-    setCurrentPage('home');
-    showToast(`Welcome to WINORA, ${displayName}! Virtual Starter Grant activated.`);
+  const handleRegisterSuccess = (displayName: string, phoneNumber: string, avatar: string) => {
+    setUser({ ...winoraEngine.getCurrentUser() });
+    setCurrentPage('games');
+    showToast(`Welcome to WINORA, ${displayName}! 50/50 Referral rule active on 1st deposit.`);
   };
 
   const handleUpdateProfile = (updatedData: { displayName: string; avatar?: string }) => {
-    if (!user) return;
-    setUser({
-      ...user,
+    setUser((prev) => ({
+      ...prev,
       ...updatedData,
-    });
+    }));
     showToast('Profile updated successfully!');
   };
 
   const handleLogout = async () => {
     await logoutUser();
-    setUser(null);
+    winoraEngine.switchUserRole('player');
+    setUser({ ...winoraEngine.getCurrentUser() });
     setCurrentPage('login');
     showToast('Signed out of WINORA session.');
+  };
+
+  const handleRoleSwitch = (newRole: 'player' | 'agent' | 'master') => {
+    winoraEngine.switchUserRole(newRole);
+    setUser({ ...winoraEngine.getCurrentUser() });
+    if (newRole === 'master') {
+      setCurrentPage('master');
+    } else if (newRole === 'agent') {
+      setCurrentPage('agent');
+    } else {
+      setCurrentPage('games');
+    }
+    showToast(`Switched active persona to ${newRole.toUpperCase()}`);
   };
 
   return (
@@ -253,7 +176,11 @@ export default function App() {
         currentPage={currentPage}
         onNavigate={handleNavigate}
         user={user}
-        onOpenDeposit={() => handleNavigate('deposit')}
+        onOpenDeposit={() => {
+          setHandshakeInitialMode('deposit');
+          setShowHandshakeModal(true);
+        }}
+        onRoleSwitch={handleRoleSwitch}
       />
 
       {/* Floating Toast Feedback */}
@@ -273,7 +200,7 @@ export default function App() {
             <Logo size="md" />
             <div className="flex items-center gap-2 text-xs text-zinc-400">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-              <span>Verifying secure WINORA session...</span>
+              <span>Connecting to WINORA Game Servers...</span>
             </div>
           </div>
         ) : (
@@ -289,64 +216,60 @@ export default function App() {
 
             {currentPage === 'games' && (
               <GamesPage
-                games={games}
-                onSelectGame={(game) => setSelectedGame(game)}
+                user={user}
+                onToast={showToast}
+              />
+            )}
+
+            {currentPage === 'history' && (
+              <HistoryPage
+                user={user}
+              />
+            )}
+
+            {currentPage === 'agent' && (
+              <AgentPortalPage
+                currentAgent={user}
+                onToast={showToast}
+              />
+            )}
+
+            {currentPage === 'master' && (
+              <MasterPortalPage
+                onToast={showToast}
+                onOpenSqlModal={() => setShowSqlModal(true)}
               />
             )}
 
             {currentPage === 'deposit' && (
-              user ? (
-                <DepositPage
-                  user={user}
-                  transactions={ledger}
-                  onNavigate={handleNavigate}
-                  onBalanceUpdate={handleBalanceUpdate}
-                />
-              ) : (
-                <LoginPage
-                  onLoginSuccess={handleLoginSuccess}
-                  onNavigate={handleNavigate}
-                  redirectNotice="Sign in with your mobile number to access deposit and wallet services."
-                />
-              )
+              <DepositPage
+                user={user}
+                transactions={ledger}
+                onNavigate={handleNavigate}
+                onBalanceUpdate={handleBalanceUpdate}
+              />
             )}
 
             {currentPage === 'wallet' && (
-              user ? (
-                <WalletPage
-                  user={user}
-                  transactions={ledger}
-                  ledger={ledger}
-                  onDepositInitiated={handleDepositInitiated}
-                  onWithdrawalRequested={handleWithdrawalRequested}
-                  onCurrencyChange={handleCurrencyChange}
-                  onBalanceUpdate={handleBalanceUpdate}
-                  onNavigate={handleNavigate}
-                />
-              ) : (
-                <LoginPage
-                  onLoginSuccess={handleLoginSuccess}
-                  onNavigate={handleNavigate}
-                  redirectNotice="Sign in with your mobile number to view your money wallet balance and transactions."
-                />
-              )
+              <WalletPage
+                user={user}
+                transactions={ledger}
+                ledger={ledger}
+                onDepositInitiated={handleDepositInitiated}
+                onWithdrawalRequested={handleWithdrawalRequested}
+                onCurrencyChange={handleCurrencyChange}
+                onBalanceUpdate={handleBalanceUpdate}
+                onNavigate={handleNavigate}
+              />
             )}
 
             {currentPage === 'profile' && (
-              user ? (
-                <ProfilePage
-                  user={user}
-                  onLogout={handleLogout}
-                  onNavigate={handleNavigate}
-                  onUpdateProfile={handleUpdateProfile}
-                />
-              ) : (
-                <LoginPage
-                  onLoginSuccess={handleLoginSuccess}
-                  onNavigate={handleNavigate}
-                  redirectNotice="Sign in with your mobile number to view your Profile & Account Settings."
-                />
-              )
+              <ProfilePage
+                user={user}
+                onLogout={handleLogout}
+                onNavigate={handleNavigate}
+                onUpdateProfile={handleUpdateProfile}
+              />
             )}
 
             {currentPage === 'login' && (
@@ -372,18 +295,22 @@ export default function App() {
           <div className="flex items-center gap-3">
             <Logo size="sm" />
             <span className="text-[11px] text-zinc-400">
-              Foundation Version 1.0 • Mobile-First Virtual Gaming
+              WINORA System • 90× Payout Games & 80% Green Protection Engine
             </span>
           </div>
 
           <div className="flex items-center gap-2 text-zinc-400 text-[11px]">
             <Shield className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Isolated Account Money Wallet • Licensed Payment Gateways • Games for Entertainment</span>
+            <span>Dual-Confirmation Handshake • 15-Minute Cutoff Enforced • Dual Wallet Isolation</span>
           </div>
 
-          <div className="text-[11px] text-zinc-400 flex items-center justify-center gap-1">
-            <span>Built with precision for</span>
-            <span className="text-zinc-300 font-semibold">WINORA Players</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSqlModal(true)}
+              className="text-[11px] text-zinc-400 hover:text-amber-400 underline cursor-pointer"
+            >
+              Supabase SQL Schema
+            </button>
           </div>
         </div>
       </footer>
@@ -394,11 +321,29 @@ export default function App() {
         onNavigate={handleNavigate}
       />
 
-      {/* Game Preview Modal (Foundation state with notice) */}
+      {/* Game Preview Modal */}
       <GamePreviewModal
         game={selectedGame}
         onClose={() => setSelectedGame(null)}
       />
+
+      {/* Dual Confirmation Handshake Modal */}
+      {showHandshakeModal && (
+        <DualConfirmationHandshakeModal
+          user={user}
+          initialMode={handshakeInitialMode}
+          onClose={() => setShowHandshakeModal(false)}
+          onSuccessToast={showToast}
+        />
+      )}
+
+      {/* Supabase SQL Schema Modal */}
+      {showSqlModal && (
+        <SqlSchemaModal
+          onClose={() => setShowSqlModal(false)}
+          onToast={showToast}
+        />
+      )}
     </div>
   );
 }
