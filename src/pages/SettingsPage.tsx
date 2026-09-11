@@ -47,7 +47,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ user, onNavigate }) 
 
   // Admin Authorization credentials
   const [adminSecretKey, setAdminSecretKey] = useState<string>(
-    () => localStorage.getItem('winora_admin_secret') || 'winora_admin_secret_2026'
+    () => localStorage.getItem('winora_admin_secret') || ''
   );
   const [showSecretKey, setShowSecretKey] = useState<boolean>(false);
 

@@ -186,23 +186,26 @@ export const KALYAN_SCHEDULE = {
   kalyan_morning: {
     name: 'Kalyan Morning',
     code: 'KM-90',
-    declareHour: 11,
-    declareMinute: 30, // Declares 11:30 AM IST
-    closeBufferMinutes: 120, // Closes 09:30 AM IST (2 hr before)
+    openTimeStr: '11:40 AM IST',
+    declareHour: 12,
+    declareMinute: 40, // Result: 12:40 PM IST
+    closeBufferMinutes: 60, // Closes before result declare
   },
   kalyan: {
     name: 'Kalyan',
     code: 'KL-90',
-    declareHour: 16,
-    declareMinute: 30, // Declares 04:30 PM IST
-    closeBufferMinutes: 120, // Closes 02:30 PM IST (2 hr before)
+    openTimeStr: '04:35 PM IST',
+    declareHour: 18,
+    declareMinute: 35, // Result: 06:35 PM IST
+    closeBufferMinutes: 120, // Closes before result declare
   },
   kalyan_night: {
     name: 'Kalyan Night',
     code: 'KN-90',
+    openTimeStr: '09:40 PM IST',
     declareHour: 23,
-    declareMinute: 45, // Declares 11:45 PM IST
-    closeBufferMinutes: 120, // Closes 09:45 PM IST (2 hr before)
+    declareMinute: 40, // Result: 11:40 PM IST
+    closeBufferMinutes: 120, // Closes before result declare
   },
 };
 
@@ -274,7 +277,7 @@ export function getKalyanRound(
     gameId: marketId,
     gameName: config.name,
     roundNumber,
-    openTimeIST: 'Morning Open',
+    openTimeIST: config.openTimeStr,
     freezeTimeIST: formatISTTime(freezeDate),
     declareTimeIST: formatISTTime(declareDate),
     freezeTimeISO: freezeDate.toISOString(),
@@ -284,6 +287,6 @@ export function getKalyanRound(
     secondsToDeclare,
     formattedTimeLeft,
     statusText,
-    bufferMinutes: 120,
+    bufferMinutes: config.closeBufferMinutes,
   };
 }

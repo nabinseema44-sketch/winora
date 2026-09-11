@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 import {
   serverGameEntryService,
-  ServerGameRound,
-  ServerGameEntry,
+  type ServerGameRound,
+  type ServerGameEntry,
   SERVER_GAMES_CONFIG,
 } from './gameEntryService.ts';
 import { authoritativeBackendStore } from './authoritativeBackendStore.ts';

@@ -49,29 +49,29 @@ export async function runAllTests(): Promise<{ passed: number; failed: number; r
   // ---------------------------------------------------------
   console.log('--- SUITE 1: Authoritative Wallet & Balance ---');
   const initialWallet = authoritativeBackendStore.getWalletSync(testUserId);
-  assert(initialWallet.balance === 5000, 'Suite 1', 'Initial default wallet balance is 5,000 demo credits', { balance: initialWallet.balance });
+  assert(initialWallet.balance === 0 && initialWallet.bonusBalance === 0, 'Suite 1', 'Initial default wallet balance is 0 for newly registered player (Zero Balance Rule)', { balance: initialWallet.balance, bonus: initialWallet.bonusBalance });
 
-  // Direct credit through authoritative store
+  // Direct deposit / initial credit through authoritative store
   const creditRes = authoritativeBackendStore.creditWinningSync({
     userId: testUserId,
-    amount: 1500,
+    amount: 6500,
     type: 'GAME_WIN',
-    gameId: 'hourly_play',
-    roundId: 'round_01',
-    entryId: 'entry_test_01',
-    idempotencyKey: `init_cred_${testUserId}`,
+    gameId: 'initial_deposit',
+    roundId: 'round_00',
+    entryId: 'entry_init_01',
+    idempotencyKey: `init_deposit_${testUserId}`,
   });
   assert(creditRes.balanceAfter === 6500, 'Suite 1', 'Authoritative credit increases balance accurately to 6,500', { balanceAfter: creditRes.balanceAfter });
 
   // Verify Idempotent credit
   const duplicateCredit = authoritativeBackendStore.creditWinningSync({
     userId: testUserId,
-    amount: 1500,
+    amount: 6500,
     type: 'GAME_WIN',
-    gameId: 'hourly_play',
-    roundId: 'round_01',
-    entryId: 'entry_test_01',
-    idempotencyKey: `init_cred_${testUserId}`,
+    gameId: 'initial_deposit',
+    roundId: 'round_00',
+    entryId: 'entry_init_01',
+    idempotencyKey: `init_deposit_${testUserId}`,
   });
   assert(duplicateCredit.duplicate === true && duplicateCredit.balanceAfter === 6500, 'Suite 1', 'Duplicate credit idempotency key prevents double crediting', { duplicateCredit });
 
@@ -260,12 +260,14 @@ export async function runAllTests(): Promise<{ passed: number; failed: number; r
   // ---------------------------------------------------------
   console.log('\n--- SUITE 5: Concurrency & Race Condition Defense ---');
   const concUserId = `test_conc_${Date.now()}`;
-  // Wallet starts at 5000 demo credits. Debit 4500 to set exact starting balance to 500.
-  authoritativeBackendStore.debitStakeSync({
+  // Initialize account with exactly 500 credits
+  authoritativeBackendStore.creditWinningSync({
     userId: concUserId,
-    amount: 4500,
+    amount: 500,
+    type: 'GAME_WIN',
     gameId: 'hourly_play',
     roundId: 'conc_init',
+    entryId: `conc_init_${concUserId}`,
     idempotencyKey: `conc_init_${concUserId}`,
   });
   const concStart = authoritativeBackendStore.getWalletSync(concUserId);
@@ -412,6 +414,15 @@ export async function runAllTests(): Promise<{ passed: number; failed: number; r
   // ---------------------------------------------------------
   console.log('\n--- SUITE 7: Persistence & Server Restart Recovery ---');
   const restartTestUser = `test_restart_${Date.now()}`;
+  authoritativeBackendStore.creditWinningSync({
+    userId: restartTestUser,
+    amount: 5000,
+    type: 'GAME_WIN',
+    gameId: 'hourly_play',
+    roundId: 'round_restart_init',
+    entryId: 'entry_restart_init',
+    idempotencyKey: `init_restart_${restartTestUser}`,
+  });
   authoritativeBackendStore.debitStakeSync({
     userId: restartTestUser,
     amount: 500,
@@ -436,7 +447,7 @@ export async function runAllTests(): Promise<{ passed: number; failed: number; r
   const postRestartWallet = authoritativeBackendStore.getWalletSync(restartTestUser);
   const postRestartLedger = authoritativeBackendStore.getLedger(restartTestUser, 10);
   assert(
-    reloadSuccess === true && postRestartWallet.balance === 4800 && postRestartLedger.length === 2,
+    reloadSuccess === true && postRestartWallet.balance === 4800 && postRestartLedger.length === 3,
     'Suite 7',
     'Server restart simulation successfully recovered wallet balance (4,800) and all immutable ledger entries from disk',
     { balance: postRestartWallet.balance, ledgerCount: postRestartLedger.length }
@@ -463,6 +474,15 @@ export async function runAllTests(): Promise<{ passed: number; failed: number; r
   // 8.1 Simulate Firestore being offline/unreachable
   authoritativeBackendStore.setFirestoreAccessible(false);
   const offlineTestUser = `test_offline_${Date.now()}`;
+  authoritativeBackendStore.creditWinningSync({
+    userId: offlineTestUser,
+    amount: 5000,
+    type: 'GAME_WIN',
+    gameId: 'hourly_play',
+    roundId: 'round_off_init',
+    entryId: 'entry_off_init',
+    idempotencyKey: `init_offline_${offlineTestUser}`,
+  });
   const offlineDebit = authoritativeBackendStore.debitStakeSync({
     userId: offlineTestUser,
     amount: 400,

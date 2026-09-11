@@ -33,7 +33,7 @@ export const walletBackendApi = {
    * Fetches full payment configuration for authorized administrators.
    */
   async getAdminPaymentConfig(adminKey?: string): Promise<PaymentConfig> {
-    const key = adminKey !== undefined ? adminKey : (localStorage.getItem('winora_admin_secret') || 'winora_admin_secret_2026');
+    const key = adminKey !== undefined ? adminKey : (localStorage.getItem('winora_admin_secret') || '');
     const headers: Record<string, string> = {};
     if (key) {
       headers['x-admin-key'] = key;
@@ -53,7 +53,7 @@ export const walletBackendApi = {
    * Normal players will be rejected with HTTP 403 Forbidden.
    */
   async updateAdminPaymentConfig(updates: Partial<PaymentConfig>, adminKey?: string): Promise<PaymentConfig> {
-    const key = adminKey !== undefined ? adminKey : (localStorage.getItem('winora_admin_secret') || 'winora_admin_secret_2026');
+    const key = adminKey !== undefined ? adminKey : (localStorage.getItem('winora_admin_secret') || '');
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (key) {
       headers['x-admin-key'] = key;

@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { requireAuth, requireRole, type AuthenticatedRequest } from './authMiddleware.ts';
 import { serverWalletService } from './walletService.ts';
 import { getPaymentProvider } from './paymentProvider.ts';
 import { paymentConfigService } from './paymentConfigService.ts';
@@ -264,10 +265,10 @@ apiRouter.get('/game-entry/balances/:uid', (req: Request, res: Response) => {
 });
 
 /**
- * Get player's personal entries (Read-only, no edit/delete)
+ * Get player's personal entries (Read-only, authenticated player)
  */
-apiRouter.get('/game-entry/my-entries', (req: Request, res: Response) => {
-  const userId = (req.query.userId as string) || (req.headers['x-user-id'] as string) || 'player-arjun';
+apiRouter.get('/game-entry/my-entries', requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.uid!;
   const entries = serverGameEntryService.getUserEntries(userId);
   res.json({ success: true, entries });
 });
@@ -275,25 +276,27 @@ apiRouter.get('/game-entry/my-entries', (req: Request, res: Response) => {
 /**
  * Step 13 Secure Game Entry Submission
  * Strictly validates:
+ * - Authenticated player identity from token context (no client-trusted headers)
  * - Authoritative round status and 15-minute freeze cutoff against server clock
  * - Maximum 37 selected numbers
  * - Valid 2-digit string representations ('00' to '99')
  * - Valid selections array with per-number stake and player-chosen color (GREEN/RED)
  * - Server calculates authoritative totalStake
- * - Authoritative Main Wallet balance deduction
+ * - Dual-wallet deduction (Bonus Wallet prioritized when available, Main Wallet fallback)
  * - Idempotency key deduplication
  */
-apiRouter.post('/game-entry/submit', (req: Request, res: Response) => {
+apiRouter.post('/game-entry/submit', requireAuth, (req: AuthenticatedRequest, res: Response) => {
   try {
     const {
       gameId,
       roundId,
       selections,
       idempotencyKey,
+      walletPreference,
     } = req.body;
 
-    // Derive user ID securely from auth header/token context, not trusting client-sent body
-    const userId = (req.headers['x-user-id'] as string) || 'player-arjun';
+    // Derive user ID strictly from authenticated token context
+    const userId = req.uid!;
 
     const result = serverGameEntryService.submitEntry({
       userId,
@@ -301,6 +304,7 @@ apiRouter.post('/game-entry/submit', (req: Request, res: Response) => {
       roundId,
       selections,
       idempotencyKey,
+      walletPreference,
     });
 
     if (!result.success) {
@@ -615,20 +619,11 @@ apiRouter.get('/results/round/:roundId', (req: Request, res: Response) => {
 /**
  * Master Freeze Round helper (allows testing/triggering outside natural 15m window)
  */
-apiRouter.post('/results/freeze-round', (req: Request, res: Response) => {
+apiRouter.post('/results/freeze-round', requireAuth, requireRole('master'), (req: AuthenticatedRequest, res: Response) => {
   try {
-    const actorRole = (req.headers['x-user-role'] as string) || '';
-    const actorId = (req.headers['x-user-id'] as string) || 'master-unknown';
+    const actorRole = req.serverRole || 'master';
+    const actorId = req.uid || 'master';
     const { gameId, roundId } = req.body;
-
-    if (actorRole !== 'master' && actorRole !== 'admin') {
-      res.status(403).json({
-        success: false,
-        errorCode: 'FORBIDDEN',
-        message: 'Master or Super Admin role is strictly required to freeze game rounds.',
-      });
-      return;
-    }
 
     const freezeRes = serverResultSettlementService.freezeRound({
       actorRole,
@@ -724,21 +719,11 @@ apiRouter.post('/results/calculate-liability', (req: Request, res: Response) => 
  * - Atomically executes 90x payouts + 80% matching color protection refund (Hourly Dhamaka)
  * - Generates immutable wallet ledger entries and audit log
  */
-apiRouter.post('/results/declare', (req: Request, res: Response) => {
+apiRouter.post('/results/declare', requireAuth, requireRole('master'), (req: AuthenticatedRequest, res: Response) => {
   try {
-    const actorRole = (req.headers['x-user-role'] as string) || '';
-    const actorId = (req.headers['x-user-id'] as string) || 'master-unknown';
+    const actorRole = req.serverRole || 'master';
+    const actorId = req.uid || 'master';
     const { gameId, roundId, winningNumber, resultColor, idempotencyKey } = req.body;
-
-    // Reject non-Master callers immediately
-    if (actorRole !== 'master' && actorRole !== 'admin') {
-      res.status(403).json({
-        success: false,
-        errorCode: 'FORBIDDEN',
-        message: 'Master / Super Admin role is strictly required to declare winning results.',
-      });
-      return;
-    }
 
     // Task 2: Validate winning number presence and format
     if (!winningNumber || typeof winningNumber !== 'string' || !/^\d{2}$/.test(winningNumber)) {
@@ -807,18 +792,8 @@ apiRouter.post('/results/declare', (req: Request, res: Response) => {
 /**
  * Get immutable settlement audit logs
  */
-apiRouter.get('/results/audit-logs', (req: Request, res: Response) => {
+apiRouter.get('/results/audit-logs', requireAuth, requireRole('master'), (req: AuthenticatedRequest, res: Response) => {
   try {
-    const actorRole = (req.headers['x-user-role'] as string) || '';
-    if (actorRole !== 'master' && actorRole !== 'admin') {
-      res.status(403).json({
-        success: false,
-        errorCode: 'FORBIDDEN',
-        message: 'Master / Super Admin role required to view audit logs.',
-      });
-      return;
-    }
-
     const logs = serverResultSettlementService.getAuditLogs();
     res.json({
       success: true,

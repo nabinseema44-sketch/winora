@@ -1,3 +1,5 @@
+import { getFirebaseAuth } from '../firebase/config.ts';
+
 export interface GameResultRecord {
   resultId: string;
   gameId: string;
@@ -148,6 +150,29 @@ class ResultSettlementApiService {
   }
 
   /**
+   * Helper to retrieve authenticated Master headers
+   */
+  private async getMasterHeaders(actorId?: string, actorRole?: string): Promise<Record<string, string>> {
+    const user = getFirebaseAuth()?.currentUser;
+    if (user) {
+      try {
+        const token = await user.getIdToken();
+        return { Authorization: `Bearer ${token}` };
+      } catch {}
+    }
+    const adminKey = localStorage.getItem('winora_admin_secret');
+    if (adminKey) {
+      return {
+        Authorization: `Bearer ${adminKey}`,
+        'x-admin-key': adminKey,
+      };
+    }
+    return {
+      Authorization: `Bearer dev_${actorId || 'master'}_${actorRole || 'master'}`,
+    };
+  }
+
+  /**
    * Master freeze round helper
    */
   public async freezeRound(params: {
@@ -157,12 +182,12 @@ class ResultSettlementApiService {
     actorRole: string;
   }): Promise<{ success: boolean; message: string }> {
     try {
+      const authHeaders = await this.getMasterHeaders(params.actorId, params.actorRole);
       const res = await fetch('/api/results/freeze-round', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': params.actorId,
-          'x-user-role': params.actorRole,
+          ...authHeaders,
         },
         body: JSON.stringify({
           gameId: params.gameId,
@@ -196,12 +221,12 @@ class ResultSettlementApiService {
     summary?: SettlementSummary;
   }> {
     try {
+      const authHeaders = await this.getMasterHeaders(params.actorId, params.actorRole);
       const res = await fetch('/api/results/declare', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': params.actorId,
-          'x-user-role': params.actorRole,
+          ...authHeaders,
         },
         body: JSON.stringify({
           gameId: params.gameId,
@@ -230,9 +255,10 @@ class ResultSettlementApiService {
    */
   public async fetchAuditLogs(actorRole: string): Promise<SettlementAuditLog[]> {
     try {
+      const authHeaders = await this.getMasterHeaders(undefined, actorRole);
       const res = await fetch('/api/results/audit-logs', {
         headers: {
-          'x-user-role': actorRole,
+          ...authHeaders,
         },
       });
       const data = await res.json();

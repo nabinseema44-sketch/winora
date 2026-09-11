@@ -1,3 +1,5 @@
+import { getFirebaseAuth } from '../firebase/config.ts';
+
 /**
  * WINORA Step 13 Game Entry API Service
  * Handles server-authoritative round configuration,
@@ -38,6 +40,7 @@ export interface SubmitGameEntryPayload {
   roundId: string;
   selections: SelectionPayload[];
   idempotencyKey: string;
+  walletPreference?: 'main' | 'bonus';
 }
 
 export interface ConfirmedGameEntry {
@@ -49,7 +52,9 @@ export interface ConfirmedGameEntry {
   roundNumber: number;
   selections: SelectionPayload[];
   totalStake: number;
-  walletUsed: 'main';
+  walletUsed: 'main' | 'bonus';
+  bonusBalanceBefore?: number;
+  bonusBalanceAfter?: number;
   status: 'CONFIRMED' | 'WON' | 'LOST';
   createdAt: string;
   idempotencyKey?: string;
@@ -67,7 +72,18 @@ export interface SubmitEntryResponse {
   message?: string;
   errorCode?: string;
   entry?: ConfirmedGameEntry;
-  remainingBalance?: { main: number };
+  remainingBalance?: { main: number; bonus?: number };
+}
+
+async function getAuthHeaders(userId?: string): Promise<Record<string, string>> {
+  const user = getFirebaseAuth()?.currentUser;
+  if (user) {
+    try {
+      const token = await user.getIdToken();
+      return { Authorization: `Bearer ${token}` };
+    } catch {}
+  }
+  return { Authorization: `Bearer dev_${userId || 'player-arjun'}` };
 }
 
 export const gameEntryApi = {
@@ -90,9 +106,10 @@ export const gameEntryApi = {
    */
   async fetchMyEntries(userId: string): Promise<ConfirmedGameEntry[]> {
     try {
-      const res = await fetch(`/api/game-entry/my-entries?userId=${encodeURIComponent(userId)}`, {
+      const authHeaders = await getAuthHeaders(userId);
+      const res = await fetch(`/api/game-entry/my-entries`, {
         headers: {
-          'x-user-id': userId,
+          ...authHeaders,
         },
       });
       if (!res.ok) throw new Error('Failed to fetch entries');
@@ -107,24 +124,26 @@ export const gameEntryApi = {
   /**
    * Submit secure game entry to Step 13 API
    * Client sends selections array: [{ number, stake, color }].
-   * Server calculates authoritative totalStake.
+   * Server calculates authoritative totalStake and verifies dual-wallet balances.
    */
   async submitEntry(
     userId: string,
     payload: SubmitGameEntryPayload
   ): Promise<SubmitEntryResponse> {
     try {
+      const authHeaders = await getAuthHeaders(userId);
       const res = await fetch('/api/game-entry/submit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': userId,
+          ...authHeaders,
         },
         body: JSON.stringify({
           gameId: payload.gameId,
           roundId: payload.roundId,
           selections: payload.selections,
           idempotencyKey: payload.idempotencyKey,
+          walletPreference: payload.walletPreference,
         }),
       });
 

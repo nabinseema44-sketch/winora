@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { serverGameEntryService } from './gameEntryService.ts';
+import { authoritativeBackendStore } from './authoritativeBackendStore.ts';
 
 export type ReferralStatus = 'REGISTERED' | 'QUALIFIED' | 'COMPLETED' | 'CANCELLED';
 
@@ -11,9 +11,12 @@ export interface ReferralRecord {
   status: ReferralStatus;        // Relationship status
   createdAt: string;             // ISO timestamp
   idempotencyKey: string;        // Deduplication key
-  rewardAmount: number;          // Demo reward amount (virtual credits to Main Wallet)
+  rewardAmount: number;          // Bonus reward amount (virtual credits to BONUS Wallet)
+  rewardWallet: 'bonus';         // Strictly Bonus Wallet as mandated by Blueprint
   rewardCredited: boolean;       // Flag indicating if reward was granted
   rewardCreditedAt?: string;     // ISO timestamp when credited
+  isAgentReferral?: boolean;     // Whether referrer is an Agent
+  agentCommissionRate?: number;  // Commission rate if agent referral
 }
 
 export interface UserReferralProfile {
@@ -21,25 +24,27 @@ export interface UserReferralProfile {
   displayName: string;
   referralCode: string;
   referredByUserId: string | null; // At most one, immutable once set
+  isAgent?: boolean;
+  assignedAgentId?: string | null;
+  totalCommissionEarned?: number;
   createdAt: string;
 }
 
 export interface ReferralConfig {
-  REFERRAL_REWARD_AMOUNT: number;   // In Step 16A, default is 0 (rewards inactive until Step 16B)
-  REFERRAL_COMMISSION_RATE: number; // Commission rate for future steps
-  IS_REWARD_ACTIVE: boolean;        // In Step 16A, false (no unconfigured reward activation)
+  REFERRAL_REWARD_AMOUNT: number;   // Configured reward amount in bonus coins
+  REFERRAL_COMMISSION_RATE: number; // Commission rate for agent
+  IS_REWARD_ACTIVE: boolean;
   QUALIFYING_EVENT: 'FIRST_DEPOSIT' | 'FIRST_BET' | 'MANUAL_ACTIVATION';
 }
 
 /**
  * Default central configuration for referral rewards.
- * STEP 16A DIRECTIVE: Do not activate arbitrary rewards without clear configuration.
- * Rewards remain inactive until the reward rules are implemented in the next step.
+ * Rewards are credited strictly to BONUS WALLET.
  */
 export const DEFAULT_REFERRAL_CONFIG: ReferralConfig = {
-  REFERRAL_REWARD_AMOUNT: 0,
-  REFERRAL_COMMISSION_RATE: 0,
-  IS_REWARD_ACTIVE: false,
+  REFERRAL_REWARD_AMOUNT: 100,
+  REFERRAL_COMMISSION_RATE: 0.05,
+  IS_REWARD_ACTIVE: true,
   QUALIFYING_EVENT: 'FIRST_DEPOSIT',
 };
 
@@ -101,6 +106,7 @@ export class ServerReferralService {
         createdAt: new Date().toISOString(),
         idempotencyKey: `rel_${userId}_${referredBy}`,
         rewardAmount: 0,
+        rewardWallet: 'bonus',
         rewardCredited: false,
       };
       this.referralsByReferredUser.set(userId, record);
@@ -309,6 +315,10 @@ export class ServerReferralService {
     const recordId = `ref_rel_${referredUserId}`;
     const now = new Date().toISOString();
 
+    // Check if referrer is an agent
+    const referrerProfile = this.users.get(referrerUserId);
+    const isAgent = Boolean(referrerProfile?.isAgent || normalizedCode.startsWith('AGT'));
+
     const record: ReferralRecord = {
       id: recordId,
       referrerUserId,
@@ -318,12 +328,18 @@ export class ServerReferralService {
       createdAt: now,
       idempotencyKey,
       rewardAmount: 0,
+      rewardWallet: 'bonus',
       rewardCredited: false,
+      isAgentReferral: isAgent,
+      agentCommissionRate: isAgent ? (this.config.REFERRAL_COMMISSION_RATE || 0.05) : undefined,
     };
 
     // 7. Update user profile with established referrer
     if (user) {
       user.referredByUserId = referrerUserId;
+      if (isAgent) {
+        user.assignedAgentId = referrerUserId;
+      }
     } else {
       const myCode = this.generateUniqueReferralCode();
       const newProfile: UserReferralProfile = {
@@ -331,6 +347,7 @@ export class ServerReferralService {
         displayName: 'WINORA Player',
         referralCode: myCode,
         referredByUserId: referrerUserId,
+        assignedAgentId: isAgent ? referrerUserId : null,
         createdAt: now,
       };
       this.users.set(referredUserId, newProfile);
@@ -375,11 +392,10 @@ export class ServerReferralService {
   /**
    * Process Referral Reward with strict idempotency and central configuration check.
    *
-   * TASK 6 & 7 DIRECTIVE:
-   * - Do NOT invent a final referral reward amount yet.
-   * - In Step 16A, reward conditions are inactive (IS_REWARD_ACTIVE = false, amount = 0).
-   * - Reward is NOT credited until the configured condition is met.
-   * - When rewards are active in future steps, credits ONLY Main Wallet.
+   * BLUEPRINT MANDATE (Sections 7 & 8):
+   * - Referral rewards MUST GO TO BONUS WALLET.
+   * - NEVER CREDIT REFERRAL REWARDS TO MAIN WALLET.
+   * - Bonus wallet can be used to place bids, cannot be withdrawn.
    */
   public processReferralReward(params: {
     referredUserId: string;
@@ -391,7 +407,7 @@ export class ServerReferralService {
     reason?: string;
     message: string;
     rewardAmount?: number;
-    creditedWallet?: 'main';
+    creditedWallet?: 'bonus';
   } {
     const { referredUserId, event } = params;
 
@@ -412,7 +428,7 @@ export class ServerReferralService {
         success: false,
         rewarded: false,
         reason: 'REWARD_CONDITIONS_NOT_MET',
-        message: 'Referral reward is not activated or reward condition is not met (Step 16A foundation).',
+        message: 'Referral reward is not activated or reward condition is not met.',
       };
     }
 
@@ -435,13 +451,20 @@ export class ServerReferralService {
         reason: 'ALREADY_PROCESSED',
         message: 'Referral reward has already been processed for this referral relationship.',
         rewardAmount: record.rewardAmount,
-        creditedWallet: 'main',
+        creditedWallet: 'bonus',
       };
     }
 
-    // 5. Credit strictly to Main Wallet
+    // 5. Credit strictly to BONUS WALLET
     const amount = this.config.REFERRAL_REWARD_AMOUNT;
-    serverGameEntryService.creditUserDemoReward(record.referrerUserId, amount);
+    authoritativeBackendStore.creditBonusSync({
+      userId: record.referrerUserId,
+      amount,
+      type: 'REFERRAL_REWARD',
+      actorId: 'referral_system',
+      referenceId: record.id,
+      idempotencyKey: rewardKey,
+    });
 
     this.processedRewardKeys.add(rewardKey);
     record.rewardAmount = amount;
@@ -452,9 +475,9 @@ export class ServerReferralService {
     return {
       success: true,
       rewarded: true,
-      message: `Referral reward of ₹${amount} demo credits successfully credited to referrer Main Wallet.`,
+      message: `Referral reward of ₹${amount} coins successfully credited to referrer Bonus Wallet.`,
       rewardAmount: amount,
-      creditedWallet: 'main',
+      creditedWallet: 'bonus',
     };
   }
 

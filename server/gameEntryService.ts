@@ -29,12 +29,14 @@ export interface ServerGameEntry {
   roundNumber: number;
   selections: Selection[];
   totalStake: number;
-  walletUsed: 'main';
+  walletUsed: 'main' | 'bonus';
   status: 'CONFIRMED' | 'WON' | 'LOST';
   createdAt: string;
   idempotencyKey?: string;
   balanceBefore?: number;
   balanceAfter?: number;
+  bonusBalanceBefore?: number;
+  bonusBalanceAfter?: number;
   ledgerTxId?: string;
   settledReward?: number;
   protectionRefund?: number;
@@ -50,11 +52,11 @@ export const SERVER_GAMES_CONFIG = [
     id: 'hourly_play',
     name: 'Hourly Play',
     code: 'HP-80P',
-    subtitle: 'Every Hour 24×7 (IST) | 15-min Freeze | 80% Protection Refund',
+    subtitle: '7:00 AM → 9:00 PM IST (Hourly) | 15-min Freeze | 80% Protection Refund',
     payoutMultiplier: 90,
     hasGreenRefund: true,
     refundPercentage: 80,
-    description: 'Hourly draws every hour. Winning number pays 90×, plus an 80% protection refund on all bids matching the declared winning color (Green or Red)!',
+    description: 'Hourly draws every hour from 7:00 AM to 9:00 PM IST. Winning number pays 90×, plus an 80% protection refund on all bids matching the declared winning color (Green or Red)!',
     accentColor: 'from-emerald-500 to-teal-500',
     intervalMinutes: 60,
   },
@@ -62,10 +64,10 @@ export const SERVER_GAMES_CONFIG = [
     id: 'kalyan_morning',
     name: 'Kalyan Morning',
     code: 'KM-90',
-    subtitle: 'Close: 09:30 AM IST | Result: 11:30 AM IST (Closes 2 hr before)',
+    subtitle: 'Opening: 11:40 AM IST | Result: 12:40 PM IST',
     payoutMultiplier: 90,
     hasGreenRefund: false,
-    description: 'Premier morning market. Closes strictly 2 hours before declaration.',
+    description: 'Premier morning market. Opening 11:40 AM IST, Result 12:40 PM IST.',
     accentColor: 'from-amber-500 to-orange-500',
     intervalMinutes: 120,
   },
@@ -73,10 +75,10 @@ export const SERVER_GAMES_CONFIG = [
     id: 'kalyan',
     name: 'Kalyan',
     code: 'KL-90',
-    subtitle: 'Close: 02:30 PM IST | Result: 04:30 PM IST (Closes 2 hr before)',
+    subtitle: 'Opening: 04:35 PM IST | Result: 06:35 PM IST',
     payoutMultiplier: 90,
     hasGreenRefund: false,
-    description: 'Flagship afternoon market. Closes strictly 2 hours before declaration.',
+    description: 'Flagship afternoon market. Opening 04:35 PM IST, Result 06:35 PM IST.',
     accentColor: 'from-cyan-500 to-blue-500',
     intervalMinutes: 120,
   },
@@ -84,10 +86,10 @@ export const SERVER_GAMES_CONFIG = [
     id: 'kalyan_night',
     name: 'Kalyan Night',
     code: 'KN-90',
-    subtitle: 'Close: 09:45 PM IST | Result: 11:45 PM IST (Closes 2 hr before)',
+    subtitle: 'Opening: 09:40 PM IST | Result: 11:40 PM IST',
     payoutMultiplier: 90,
     hasGreenRefund: false,
-    description: 'Evening high-yield market. Closes strictly 2 hours before declaration.',
+    description: 'Evening high-yield market. Opening 09:40 PM IST, Result 11:40 PM IST.',
     accentColor: 'from-purple-500 to-pink-500',
     intervalMinutes: 120,
   },
@@ -142,21 +144,11 @@ class GameEntryService {
   private rounds: Map<string, ServerGameRound> = new Map();
   private entries: ServerGameEntry[] = [];
   private idempotencyStore: Map<string, ServerGameEntry> = new Map();
-  // In-memory demo balances for server authoritative check - strictly Main Wallet only
-  private userDemoBalances: Map<string, { main: number }> = new Map();
   private processedReferralKeys: Set<string> = new Set();
 
   constructor() {
     this.initDefaultRounds();
-    this.initDefaultUserBalances();
     this.initSeedEntries();
-  }
-
-  private initDefaultUserBalances() {
-    // Default demo balances (Main Wallet only)
-    this.userDemoBalances.set('player-arjun', { main: 5000 });
-    this.userDemoBalances.set('demo-player-uid-123', { main: 5000 });
-    this.userDemoBalances.set('default', { main: 5000 });
   }
 
   private initDefaultRounds() {
@@ -343,15 +335,17 @@ class GameEntryService {
     };
   }
 
-  public getUserBalance(userId: string): { main: number } {
+  public getUserBalance(userId: string): { main: number; bonus: number } {
     const wallet = authoritativeBackendStore.getWalletSync(userId);
-    return { main: wallet.balance };
+    return { main: wallet.balance, bonus: wallet.bonusBalance || 0 };
   }
 
-  public setUserBalance(userId: string, balances: { main: number }) {
-    this.userDemoBalances.set(userId, balances);
+  public setUserBalance(userId: string, balances: { main: number; bonus?: number }) {
     const wallet = authoritativeBackendStore.getWalletSync(userId);
     wallet.balance = balances.main;
+    if (balances.bonus !== undefined) {
+      wallet.bonusBalance = balances.bonus;
+    }
   }
 
   public getUserEntries(userId: string): ServerGameEntry[] {
@@ -361,7 +355,7 @@ class GameEntryService {
   }
 
   /**
-   * Authoritative Step 13 Game Entry Submission - Single Main Wallet
+   * Authoritative Game Entry Submission with Server-Authoritative Dual-Wallet Spending
    * Validates selections array: number (00-99), stake (min 1, max 10000), color (GREEN | RED).
    * Server calculates totalStake = sum of selection stakes.
    */
@@ -371,14 +365,15 @@ class GameEntryService {
     roundId: string;
     selections: Selection[];
     idempotencyKey?: string;
+    walletPreference?: 'main' | 'bonus';
   }): {
     success: boolean;
     error?: string;
     errorCode?: string;
     entry?: ServerGameEntry;
-    remainingBalance?: { main: number };
+    remainingBalance?: { main: number; bonus: number };
   } {
-    const { userId, gameId, roundId, selections, idempotencyKey } = params;
+    const { userId, gameId, roundId, selections, idempotencyKey, walletPreference } = params;
 
     // 1. Idempotency Check
     if (idempotencyKey && this.idempotencyStore.has(idempotencyKey)) {
@@ -417,7 +412,7 @@ class GameEntryService {
       return {
         success: false,
         errorCode: 'ROUND_CLOSED',
-        error: `Bidding is strictly FROZEN for this round. Server cutoff (${isKalyan ? '2 hours' : '15 minutes'} prior to draw time) has been enforced.`,
+        error: `Bidding is strictly FROZEN for this round. Server cutoff (${isKalyan ? 'market cutoff' : '15 minutes'} prior to draw time) has been enforced.`,
       };
     }
 
@@ -477,7 +472,7 @@ class GameEntryService {
         return {
           success: false,
           errorCode: 'INVALID_AMOUNT',
-          error: `Stake for number ${numStr} must be between 1 and 10,000 demo credits (Received: ${stake}).`,
+          error: `Stake for number ${numStr} must be between 1 and 10,000 credits (Received: ${stake}).`,
         };
       }
 
@@ -504,7 +499,7 @@ class GameEntryService {
 
     const totalStake = calculatedTotalStake;
 
-    // 6. Server-Authoritative Balance Check & Atomic Deduction via Authoritative Backend Store
+    // 6. Server-Authoritative Dual-Wallet Balance Check & Atomic Deduction via Authoritative Backend Store
     const effectiveIdempotencyKey = idempotencyKey || `bid_${userId}_${round.id}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     const debitRes = authoritativeBackendStore.debitStakeSync({
       userId,
@@ -512,13 +507,14 @@ class GameEntryService {
       gameId,
       roundId: round.id,
       idempotencyKey: effectiveIdempotencyKey,
+      walletPreference,
     });
 
     if (!debitRes.success) {
       return {
         success: false,
         errorCode: 'INSUFFICIENT_CREDITS',
-        error: debitRes.error || `Insufficient demo credits in Main Wallet. Required: ₹${totalStake.toLocaleString()}, Available: ₹${debitRes.balanceBefore.toLocaleString()}.`,
+        error: debitRes.error || `Insufficient balance. Required: ₹${totalStake.toLocaleString()}.`,
       };
     }
 
@@ -536,12 +532,14 @@ class GameEntryService {
       roundNumber: round.roundNumber,
       selections: [...selections].sort((a, b) => a.number.localeCompare(b.number)),
       totalStake,
-      walletUsed: 'main',
+      walletUsed: debitRes.walletUsed,
       status: 'CONFIRMED',
       createdAt: new Date().toISOString(),
       idempotencyKey: effectiveIdempotencyKey,
       balanceBefore: debitRes.balanceBefore,
       balanceAfter: debitRes.balanceAfter,
+      bonusBalanceBefore: debitRes.bonusBalanceBefore,
+      bonusBalanceAfter: debitRes.bonusBalanceAfter,
       ledgerTxId: debitRes.ledgerId,
     };
 
@@ -552,7 +550,7 @@ class GameEntryService {
     return {
       success: true,
       entry: newEntry,
-      remainingBalance: { main: debitRes.balanceAfter },
+      remainingBalance: { main: debitRes.balanceAfter, bonus: debitRes.bonusBalanceAfter },
     };
   }
 
@@ -582,7 +580,7 @@ class GameEntryService {
     }
   }
 
-  public creditUserDemoReward(userId: string, amount: number): { main: number } {
+  public creditUserDemoReward(userId: string, amount: number): { main: number; bonus: number } {
     const credRes = authoritativeBackendStore.creditWinningSync({
       userId,
       amount,
@@ -592,19 +590,19 @@ class GameEntryService {
       entryId: 'manual',
       idempotencyKey: `reward_${userId}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
     });
-    return { main: credRes.balanceAfter };
+    return this.getUserBalance(userId);
   }
 
   /**
    * Referral Reward Crediting with strict idempotency (can only be credited once per qualifying referral)
-   * Credited 100% to Main Wallet.
+   * Blueprint Rule 8: Referral rewards MUST be credited to BONUS WALLET, NEVER Main Wallet.
    */
   public creditReferralReward(params: {
     referralKey: string;
     userId: string;
     amount: number;
     referrerId?: string;
-  }): { success: boolean; message: string; remainingBalance?: { main: number } } {
+  }): { success: boolean; message: string; remainingBalance?: { main: number; bonus: number } } {
     const { referralKey, userId, amount, referrerId } = params;
 
     if (this.processedReferralKeys.has(referralKey)) {
@@ -617,20 +615,31 @@ class GameEntryService {
 
     this.processedReferralKeys.add(referralKey);
 
-    const userBal = this.getUserBalance(userId);
-    userBal.main += amount;
-    this.userDemoBalances.set(userId, userBal);
+    // Credit bonus wallet for user
+    authoritativeBackendStore.creditBonusSync({
+      userId,
+      amount,
+      type: 'REFERRAL_REWARD',
+      actorId: 'referral_system',
+      referenceId: referralKey,
+      idempotencyKey: `ref_user_${referralKey}`,
+    });
 
     if (referrerId) {
-      const refBal = this.getUserBalance(referrerId);
-      refBal.main += amount;
-      this.userDemoBalances.set(referrerId, refBal);
+      authoritativeBackendStore.creditBonusSync({
+        userId: referrerId,
+        amount,
+        type: 'REFERRAL_REWARD',
+        actorId: 'referral_system',
+        referenceId: referralKey,
+        idempotencyKey: `ref_referrer_${referralKey}`,
+      });
     }
 
     return {
       success: true,
-      message: `Referral reward of ₹${amount} demo credits credited to Main Wallet (Key: ${referralKey}).`,
-      remainingBalance: userBal,
+      message: `Referral reward of ₹${amount} coins credited to BONUS WALLET (Key: ${referralKey}).`,
+      remainingBalance: this.getUserBalance(userId),
     };
   }
 

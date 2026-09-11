@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { getPaymentProvider, PaymentGatewayProvider } from './paymentProvider.ts';
+import { getPaymentProvider, type PaymentGatewayProvider } from './paymentProvider.ts';
 import { paymentConfigService } from './paymentConfigService.ts';
 
 export type KycStatus = 'not_submitted' | 'pending' | 'verified' | 'rejected';

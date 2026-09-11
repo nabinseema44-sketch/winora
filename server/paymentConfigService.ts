@@ -1,6 +1,9 @@
-import { PaymentConfig, PublicPaymentConfig, DepositProviderType, WithdrawalProviderType } from '../src/types.ts';
+import crypto from 'crypto';
+import type { PaymentConfig, PublicPaymentConfig, DepositProviderType, WithdrawalProviderType } from '../src/types.ts';
 
-export const DEFAULT_ADMIN_SECRET = process.env.ADMIN_SECRET_KEY || 'winora_admin_secret_2026';
+// Strong ephemeral secret generated at runtime if not provided via environment variable
+const EPHEMERAL_ADMIN_SECRET = crypto.randomBytes(32).toString('hex');
+export const DEFAULT_ADMIN_SECRET = process.env.ADMIN_SECRET_KEY || EPHEMERAL_ADMIN_SECRET;
 
 /**
  * Server-Authoritative Payment Configuration Service
@@ -51,7 +54,7 @@ class PaymentConfigService {
   public verifyAdminAuthorization(tokenOrSecret?: string): boolean {
     if (!tokenOrSecret) return false;
     const cleanToken = tokenOrSecret.replace(/^Bearer\s+/i, '').trim();
-    return cleanToken === DEFAULT_ADMIN_SECRET || cleanToken === 'admin-master-key';
+    return cleanToken === DEFAULT_ADMIN_SECRET;
   }
 
   /**

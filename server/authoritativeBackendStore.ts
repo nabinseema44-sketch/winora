@@ -45,12 +45,15 @@ export interface AuthoritativeGameEntry {
   roundNumber: number;
   selections: AuthoritativeSelection[];
   totalStake: number;
-  walletUsed: 'main';
+  walletUsed: 'main' | 'bonus';
   status: 'CONFIRMED' | 'WON' | 'LOST';
   createdAt: string;
   idempotencyKey?: string;
   balanceBefore?: number;
   balanceAfter?: number;
+  bonusBalanceBefore?: number;
+  bonusBalanceAfter?: number;
+  ledgerTxId?: string;
   settledReward?: number;
   protectionRefund?: number;
   totalSettlementCredit?: number;
@@ -224,11 +227,11 @@ class AuthoritativeBackendStore {
   }
 
   private initDefaultPlayers() {
-    // Ensure default demo players exist
+    // A newly registered player must have MAIN WALLET: 0, BONUS WALLET: 0
     if (!this.wallets.has('player-arjun')) {
       this.wallets.set('player-arjun', {
         uid: 'player-arjun',
-        balance: 5000,
+        balance: 0,
         bonusBalance: 0,
         currency: 'COIN',
         updatedAt: new Date().toISOString(),
@@ -237,7 +240,7 @@ class AuthoritativeBackendStore {
     if (!this.wallets.has('demo-player-uid-123')) {
       this.wallets.set('demo-player-uid-123', {
         uid: 'demo-player-uid-123',
-        balance: 5000,
+        balance: 0,
         bonusBalance: 0,
         currency: 'COIN',
         updatedAt: new Date().toISOString(),
@@ -311,7 +314,7 @@ class AuthoritativeBackendStore {
     if (!wallet) {
       wallet = {
         uid,
-        balance: 5000, // Default demo liquidity for seamless exploration
+        balance: 0, // Strictly zero balance for new players - Mandatory Blueprint Rule
         bonusBalance: 0,
         currency: 'COIN',
         updatedAt: new Date().toISOString(),
@@ -328,6 +331,10 @@ class AuthoritativeBackendStore {
 
   /**
    * Synchronous / Immediate Atomic Balance Deduction for Bids (GAME_STAKE)
+   * Enforces server-authoritative dual-wallet spending policy:
+   * 1. If player requests or has bonus coins, Bonus Wallet can fund the bet.
+   * 2. Otherwise Main Wallet funds the bet.
+   * 3. Never trusts client-reported balances.
    */
   public debitStakeSync(params: {
     userId: string;
@@ -335,25 +342,33 @@ class AuthoritativeBackendStore {
     gameId: string;
     roundId: string;
     idempotencyKey: string;
+    walletPreference?: 'main' | 'bonus';
   }): {
     success: boolean;
     balanceBefore: number;
     balanceAfter: number;
+    bonusBalanceBefore: number;
+    bonusBalanceAfter: number;
+    walletUsed: 'main' | 'bonus';
     ledgerId: string;
     duplicate?: boolean;
     error?: string;
   } {
-    const { userId, amount, gameId, roundId, idempotencyKey } = params;
+    const { userId, amount, gameId, roundId, idempotencyKey, walletPreference } = params;
 
     // Idempotency check
     const existingTx = Array.from(this.ledger.values()).find(
       (tx) => tx.idempotencyKey === idempotencyKey && tx.status === 'COMPLETED'
     );
     if (existingTx) {
+      const isBonus = existingTx.bonusBalanceBefore !== undefined && existingTx.bonusBalanceBefore !== existingTx.bonusBalanceAfter;
       return {
         success: true,
         balanceBefore: existingTx.balanceBefore,
         balanceAfter: existingTx.balanceAfter,
+        bonusBalanceBefore: existingTx.bonusBalanceBefore || 0,
+        bonusBalanceAfter: existingTx.bonusBalanceAfter || 0,
+        walletUsed: isBonus ? 'bonus' : 'main',
         ledgerId: existingTx.id,
         duplicate: true,
       };
@@ -361,25 +376,74 @@ class AuthoritativeBackendStore {
 
     const wallet = this.wallets.get(userId) || {
       uid: userId,
-      balance: 5000,
+      balance: 0,
       bonusBalance: 0,
       currency: 'COIN',
       updatedAt: new Date().toISOString(),
     };
 
-    if (wallet.balance < amount) {
-      return {
-        success: false,
-        balanceBefore: wallet.balance,
-        balanceAfter: wallet.balance,
-        ledgerId: '',
-        error: `Insufficient balance. Required: ₹${amount.toLocaleString()}, Available: ₹${wallet.balance.toLocaleString()}.`,
-      };
+    let walletUsed: 'main' | 'bonus' = 'main';
+    if (walletPreference === 'bonus') {
+      if (wallet.bonusBalance < amount) {
+        return {
+          success: false,
+          balanceBefore: wallet.balance,
+          balanceAfter: wallet.balance,
+          bonusBalanceBefore: wallet.bonusBalance,
+          bonusBalanceAfter: wallet.bonusBalance,
+          walletUsed: 'bonus',
+          ledgerId: '',
+          error: `Insufficient bonus coins. Required: ₹${amount.toLocaleString()}, Available in Bonus Wallet: ₹${wallet.bonusBalance.toLocaleString()}.`,
+        };
+      }
+      walletUsed = 'bonus';
+    } else if (walletPreference === 'main') {
+      if (wallet.balance < amount) {
+        return {
+          success: false,
+          balanceBefore: wallet.balance,
+          balanceAfter: wallet.balance,
+          bonusBalanceBefore: wallet.bonusBalance,
+          bonusBalanceAfter: wallet.bonusBalance,
+          walletUsed: 'main',
+          ledgerId: '',
+          error: `Insufficient coins in Main Wallet. Required: ₹${amount.toLocaleString()}, Available: ₹${wallet.balance.toLocaleString()}.`,
+        };
+      }
+      walletUsed = 'main';
+    } else {
+      // Default spending policy: Use bonus wallet if sufficient, else main wallet
+      if (wallet.bonusBalance >= amount) {
+        walletUsed = 'bonus';
+      } else if (wallet.balance >= amount) {
+        walletUsed = 'main';
+      } else {
+        return {
+          success: false,
+          balanceBefore: wallet.balance,
+          balanceAfter: wallet.balance,
+          bonusBalanceBefore: wallet.bonusBalance,
+          bonusBalanceAfter: wallet.bonusBalance,
+          walletUsed: 'main',
+          ledgerId: '',
+          error: `Insufficient balance. Required: ₹${amount.toLocaleString()}, Available: ₹${wallet.balance.toLocaleString()} (Main) and ₹${wallet.bonusBalance.toLocaleString()} (Bonus).`,
+        };
+      }
     }
 
     const balanceBefore = wallet.balance;
-    const balanceAfter = Math.round((balanceBefore - amount) * 100) / 100;
-    wallet.balance = balanceAfter;
+    const bonusBalanceBefore = wallet.bonusBalance;
+    let balanceAfter = balanceBefore;
+    let bonusBalanceAfter = bonusBalanceBefore;
+
+    if (walletUsed === 'bonus') {
+      bonusBalanceAfter = Math.round((bonusBalanceBefore - amount) * 100) / 100;
+      wallet.bonusBalance = bonusBalanceAfter;
+    } else {
+      balanceAfter = Math.round((balanceBefore - amount) * 100) / 100;
+      wallet.balance = balanceAfter;
+    }
+
     wallet.updatedAt = new Date().toISOString();
     this.wallets.set(userId, wallet);
 
@@ -391,6 +455,8 @@ class AuthoritativeBackendStore {
       amount: -amount,
       balanceBefore,
       balanceAfter,
+      bonusBalanceBefore,
+      bonusBalanceAfter,
       actorId: userId,
       gameId,
       roundId,
@@ -407,6 +473,9 @@ class AuthoritativeBackendStore {
       success: true,
       balanceBefore,
       balanceAfter,
+      bonusBalanceBefore,
+      bonusBalanceAfter,
+      walletUsed,
       ledgerId,
       duplicate: false,
     };
@@ -418,12 +487,91 @@ class AuthoritativeBackendStore {
     gameId: string;
     roundId: string;
     idempotencyKey: string;
+    walletPreference?: 'main' | 'bonus';
   }) {
     return this.debitStakeSync(params);
   }
 
   /**
-   * Synchronous / Immediate Atomic Balance Crediting for Wins and Protection Refunds
+   * Synchronous / Immediate Atomic Balance Crediting for Referral Rewards (BONUS WALLET ONLY)
+   * Blueprint Rule 8: Referral rewards MUST be credited to Bonus Wallet, NEVER Main Wallet.
+   */
+  public creditBonusSync(params: {
+    userId: string;
+    amount: number;
+    type?: 'REFERRAL_REWARD' | 'MASTER_ADJUSTMENT' | 'HELPER_GIFT';
+    actorId?: string;
+    referenceId?: string;
+    idempotencyKey: string;
+  }): {
+    success: boolean;
+    bonusBalanceBefore: number;
+    bonusBalanceAfter: number;
+    ledgerId: string;
+    duplicate?: boolean;
+  } {
+    const { userId, amount, type = 'REFERRAL_REWARD', actorId = 'system_referral_engine', referenceId, idempotencyKey } = params;
+
+    const existingTx = Array.from(this.ledger.values()).find(
+      (tx) => tx.idempotencyKey === idempotencyKey && tx.status === 'COMPLETED'
+    );
+    if (existingTx) {
+      return {
+        success: true,
+        bonusBalanceBefore: existingTx.bonusBalanceBefore || 0,
+        bonusBalanceAfter: existingTx.bonusBalanceAfter || 0,
+        ledgerId: existingTx.id,
+        duplicate: true,
+      };
+    }
+
+    const wallet = this.wallets.get(userId) || {
+      uid: userId,
+      balance: 0,
+      bonusBalance: 0,
+      currency: 'COIN',
+      updatedAt: new Date().toISOString(),
+    };
+
+    const bonusBalanceBefore = wallet.bonusBalance || 0;
+    const bonusBalanceAfter = Math.round((bonusBalanceBefore + amount) * 100) / 100;
+    wallet.bonusBalance = bonusBalanceAfter;
+    wallet.updatedAt = new Date().toISOString();
+    this.wallets.set(userId, wallet);
+
+    const ledgerId = `tx_bonus_${type.toLowerCase()}_${idempotencyKey}`;
+    const ledgerEntry: AuthoritativeLedgerEntry = {
+      id: ledgerId,
+      userId,
+      type: type as any,
+      amount,
+      balanceBefore: wallet.balance,
+      balanceAfter: wallet.balance,
+      bonusBalanceBefore,
+      bonusBalanceAfter,
+      actorId,
+      referenceId,
+      status: 'COMPLETED',
+      idempotencyKey,
+      createdAt: new Date().toISOString(),
+    };
+    this.ledger.set(ledgerId, ledgerEntry);
+
+    this.persistToDisk().catch(() => {});
+    this.syncWalletToFirestore(wallet, ledgerEntry).catch(() => {});
+
+    return {
+      success: true,
+      bonusBalanceBefore,
+      bonusBalanceAfter,
+      ledgerId,
+      duplicate: false,
+    };
+  }
+
+  /**
+   * Synchronous / Immediate Atomic Balance Crediting for Wins and Protection Refunds (MAIN WALLET ONLY)
+   * Blueprint Rule 2: Game winnings and protection refunds are ALWAYS credited to Main Wallet.
    */
   public creditWinningSync(params: {
     userId: string;
@@ -459,7 +607,7 @@ class AuthoritativeBackendStore {
 
     const wallet = this.wallets.get(userId) || {
       uid: userId,
-      balance: 5000,
+      balance: 0, // Mandatory zero starting balance
       bonusBalance: 0,
       currency: 'COIN',
       updatedAt: new Date().toISOString(),
@@ -479,6 +627,8 @@ class AuthoritativeBackendStore {
       amount,
       balanceBefore,
       balanceAfter,
+      bonusBalanceBefore: wallet.bonusBalance,
+      bonusBalanceAfter: wallet.bonusBalance,
       actorId: 'system_settlement_engine',
       gameId,
       roundId,
