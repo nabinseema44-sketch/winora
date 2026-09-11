@@ -45,7 +45,6 @@ export const COLLECTIONS = {
   AUDIT_LOGS: 'auditLogs',
 } as const;
 
-// Typed Firestore Document Definitions
 export interface UserDocument {
   uid: string;
   phoneNumber: string;
@@ -138,6 +137,9 @@ export interface AuditLogDocument {
 
 /**
  * Retrieve user profile document from Firestore.
+ * Returns null only when the document does not exist or Firestore is not initialized.
+ * Connectivity/permission errors are rethrown so callers can distinguish them from
+ * a missing profile and handle them without silently treating an outage as signup.
  */
 export async function getUserProfile(userId: string): Promise<UserDocument | null> {
   const db = getFirebaseDb();
@@ -152,7 +154,7 @@ export async function getUserProfile(userId: string): Promise<UserDocument | nul
     return null;
   } catch (error) {
     handleFirebaseError(error, 'read', `${COLLECTIONS.USERS}/${userId}`);
-    return null;
+    throw error;
   }
 }
 
@@ -186,8 +188,8 @@ export async function createUserProfile(
       uid,
       phoneNumber: data.phoneNumber.trim(),
       displayName: (data.displayName && data.displayName.trim().length >= 2) ? data.displayName.trim() : fallbackName,
-      role: 'player', // Default newly registered role is always "player"
-      status: 'active', // Default status is always "active"
+      role: 'player',
+      status: 'active',
       avatar: data.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
       createdAt: now,
       updatedAt: now,
@@ -200,12 +202,6 @@ export async function createUserProfile(
   }
 }
 
-/**
- * Update safe profile fields for a logged-in player in users/{uid}.
- * Allows updating ONLY safe profile fields such as: displayName (and optional avatar).
- * Modifying uid, role, status, and createdAt is strictly forbidden and rejected.
- * Automatically updates updatedAt timestamp.
- */
 export async function updateUserProfile(
   uid: string,
   updates: {
@@ -229,8 +225,6 @@ export async function updateUserProfile(
   try {
     const userRef = doc(db, COLLECTIONS.USERS, uid);
     const now = new Date().toISOString();
-
-    // Whitelist ONLY safe fields; never write role, status, uid, or createdAt
     const safePayload: {
       displayName: string;
       updatedAt: string;
@@ -256,10 +250,6 @@ export async function updateUserProfile(
 // Prepared Read Operations for Future Expansion
 // ----------------------------------------------------------------------------
 
-/**
- * Read-only access to user's verified wallet document.
- * Browser WRITES to this collection are blocked by Security Rules.
- */
 export async function getWallet(userId: string): Promise<WalletDocument | null> {
   const db = getFirebaseDb();
   if (!db) return null;
@@ -277,9 +267,6 @@ export async function getWallet(userId: string): Promise<WalletDocument | null> 
   }
 }
 
-/**
- * Read game catalog definitions from Firestore.
- */
 export async function getGamesCatalog(): Promise<GameDocument[]> {
   const db = getFirebaseDb();
   if (!db) return [];
@@ -294,9 +281,6 @@ export async function getGamesCatalog(): Promise<GameDocument[]> {
   }
 }
 
-/**
- * Read user notifications.
- */
 export async function getUserNotifications(userId: string): Promise<NotificationDocument[]> {
   const db = getFirebaseDb();
   if (!db) return [];
@@ -305,20 +289,13 @@ export async function getUserNotifications(userId: string): Promise<Notification
     const notifsCol = collection(db, COLLECTIONS.NOTIFICATIONS);
     const q = query(notifsCol, where('userId', 'in', [userId, 'broadcast']), limit(20));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((d) => ({ id: d.id, ...d.data() } as NotificationDocument));
+    return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch (error) {
     handleFirebaseError(error, 'list', COLLECTIONS.NOTIFICATIONS);
     return [];
   }
 }
 
-// ----------------------------------------------------------------------------
-// Connectivity Verification
-// ----------------------------------------------------------------------------
-
-/**
- * Diagnostic test to verify Firestore database reachability.
- */
 export async function testFirestoreConnection(): Promise<{
   connected: boolean;
   message: string;
@@ -341,7 +318,6 @@ export async function testFirestoreConnection(): Promise<{
 
   const startTime = Date.now();
   try {
-    // Attempt a light server-direct probe to test rules and network
     const testDocRef = doc(db, '_system', 'connectionTest');
     await getDocFromServer(testDocRef);
     const latencyMs = Date.now() - startTime;
@@ -354,7 +330,6 @@ export async function testFirestoreConnection(): Promise<{
   } catch (error: any) {
     const latencyMs = Date.now() - startTime;
     const code = error?.code || '';
-    // If the error is 'permission-denied' or document doesn't exist, the network channel to Firestore actually works!
     if (code === 'permission-denied' || code === 'not-found') {
       return {
         connected: true,
