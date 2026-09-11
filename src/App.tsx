@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { DisclaimerBanner } from './components/DisclaimerBanner.tsx';
 import { Navbar } from './components/Navbar.tsx';
 import { BottomNav } from './components/BottomNav.tsx';
 import { GamePreviewModal } from './components/GamePreviewModal.tsx';
@@ -17,7 +16,7 @@ import { HistoryPage } from './pages/HistoryPage.tsx';
 import { AgentPortalPage } from './pages/AgentPortalPage.tsx';
 import { MasterPortalPage } from './pages/MasterPortalPage.tsx';
 
-import { DEFAULT_PLAYER_AVATAR, MOCK_GAMES } from './data/mockData.ts';
+import { MOCK_GAMES } from './data/mockData.ts';
 import { GameItem, NavPage, UserProfile, WinoraGameConfig } from './types.ts';
 import { CheckCircle2, Shield } from 'lucide-react';
 import { onAuthChange, logoutUser } from './firebase/authService.ts';
@@ -52,7 +51,6 @@ export default function App() {
             id: profile.uid,
             displayName: profile.displayName || firebaseUser.displayName || defaultName,
             phoneNumber: profile.phoneNumber || verifiedPhone,
-            avatar: profile.avatar || DEFAULT_PLAYER_AVATAR,
             tier: profile.tier || 'Bronze',
             role: profile.role || 'player',
             status: profile.status || 'active',
@@ -98,14 +96,13 @@ export default function App() {
     showToast(`Opened ${newRole.toUpperCase()} workspace. Server permissions still apply.`);
   };
 
-  const handleUpdateProfile = (updatedData: { displayName: string; avatar?: string }) => {
+  const handleUpdateProfile = (updatedData: { displayName: string }) => {
     setUser((prev) => ({ ...prev, ...updatedData }));
     showToast('Profile updated successfully!');
   };
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-amber-500 selection:text-black">
-      <DisclaimerBanner />
       <Navbar
         currentPage={currentPage}
         onNavigate={handleNavigate}

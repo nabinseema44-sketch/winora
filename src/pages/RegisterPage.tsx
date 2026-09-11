@@ -35,27 +35,9 @@ import { winoraEngine } from '../services/winoraEngine.ts';
 import type { ConfirmationResult } from 'firebase/auth';
 
 interface RegisterPageProps {
-  onRegisterSuccess: (displayName: string, phoneNumber: string, avatar: string) => void;
+  onRegisterSuccess: (displayName: string, phoneNumber: string, avatar?: string) => void;
   onNavigate: (page: NavPage) => void;
 }
-
-const AVATAR_PRESETS = [
-  {
-    id: 'av-1',
-    src: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
-    label: 'Cyber Raider',
-  },
-  {
-    id: 'av-2',
-    src: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-    label: 'Neon Scout',
-  },
-  {
-    id: 'av-3',
-    src: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-    label: 'Vortex Pilot',
-  },
-];
 
 export const RegisterPage: React.FC<RegisterPageProps> = ({
   onRegisterSuccess,
@@ -73,7 +55,6 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
   const [otpCode, setOtpCode] = useState('');
 
   // Profile preferences
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_PRESETS[0].src);
   const [termsAgreed, setTermsAgreed] = useState(true);
 
   // States
@@ -182,7 +163,6 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
           await createUserProfile(firebaseUser.uid, {
             phoneNumber: firebaseUser.phoneNumber || formattedE164,
             displayName: fullName,
-            avatar: selectedAvatar,
             tier: 'Bronze',
             level: 1,
           });
@@ -203,11 +183,10 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
       pincode,
       referralCode: referralCode.trim() || undefined,
       assignedAgentId: assignedAgent.id,
-      avatar: selectedAvatar,
     });
 
     setLoading(false);
-    onRegisterSuccess(fullName, formattedE164, selectedAvatar);
+    onRegisterSuccess(fullName, formattedE164);
   };
 
   return (

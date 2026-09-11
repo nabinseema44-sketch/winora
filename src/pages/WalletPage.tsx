@@ -18,6 +18,13 @@ import {
   Layers,
   Send,
   SlidersHorizontal,
+  QrCode,
+  Building2,
+  Smartphone,
+  Edit3,
+  Save,
+  Coins,
+  X,
 } from 'lucide-react';
 import {
   UserProfile,
@@ -36,11 +43,23 @@ interface WalletPageProps {
   user: UserProfile | null;
   onNavigate?: (page: NavPage) => void;
   onBalanceUpdate?: (newBalance: number) => void;
+  initialTab?: 'overview' | 'deposit' | 'withdrawal' | 'ledger' | 'referrals';
 }
 
-export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNavigate }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'deposit' | 'withdrawal' | 'ledger' | 'referrals'>('overview');
+export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNavigate, initialTab }) => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'deposit' | 'withdrawal' | 'ledger' | 'referrals'>(
+    initialTab || 'overview'
+  );
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  // Sync initialTab if prop changes
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Engine state subscriptions
   const [currentUser, setCurrentUser] = useState<UserProfile>(
@@ -52,6 +71,15 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
   const [paymentSettings, setPaymentSettings] = useState<MasterPaymentSettings>(winoraEngine.getMasterPaymentSettings());
   const [referrals, setReferrals] = useState<ReferralRecord[]>(winoraEngine.getReferrals());
 
+  // Master Deposit QR & Link Edit State
+  const isMaster = currentUser.role === 'master' || currentUser.id === 'master-admin';
+  const [showMasterDepositEditor, setShowMasterDepositEditor] = useState(false);
+  const [masterQrUrl, setMasterQrUrl] = useState(paymentSettings.qrCodeUrl || '');
+  const [masterPaymentUrl, setMasterPaymentUrl] = useState(paymentSettings.paymentUrl || '');
+  const [masterUpiId, setMasterUpiId] = useState(paymentSettings.upiId || '');
+  const [masterAccountName, setMasterAccountName] = useState(paymentSettings.accountHolderName || '');
+  const [masterInstructions, setMasterInstructions] = useState(paymentSettings.instructions || '');
+
   // Deposit Form State
   const [depositAmountRupees, setDepositAmountRupees] = useState<string>('1000');
   const [depositUtr, setDepositUtr] = useState<string>('');
@@ -60,21 +88,39 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
   const [depositNotice, setDepositNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Withdrawal Form State
+  const [payoutMethod, setPayoutMethod] = useState<'UPI' | 'BANK'>('UPI');
   const [withdrawAmountRupees, setWithdrawAmountRupees] = useState<string>('500');
+  
+  // UPI fields
   const [withdrawUpiId, setWithdrawUpiId] = useState<string>('');
   const [withdrawAccountName, setWithdrawAccountName] = useState<string>(currentUser.displayName || '');
+
+  // Bank fields
+  const [bankAccountNumber, setBankAccountNumber] = useState<string>('');
+  const [confirmBankAccountNumber, setConfirmBankAccountNumber] = useState<string>('');
+  const [bankIfscCode, setBankIfscCode] = useState<string>('');
+  const [bankName, setBankName] = useState<string>('');
+  const [bankHolderName, setBankHolderName] = useState<string>(currentUser.displayName || '');
+
   const [withdrawSubmitting, setWithdrawSubmitting] = useState(false);
   const [withdrawNotice, setWithdrawNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Subscribe to winoraEngine updates
   useEffect(() => {
     const handleUpdate = () => {
-      setCurrentUser({ ...winoraEngine.getCurrentUser() });
+      const user = winoraEngine.getCurrentUser();
+      const settings = winoraEngine.getMasterPaymentSettings();
+      setCurrentUser({ ...user });
       setLedgerEntries(winoraEngine.getLedger());
       setDepositRequests(winoraEngine.getDepositRequests());
       setWithdrawalRequests(winoraEngine.getWithdrawalRequests());
-      setPaymentSettings(winoraEngine.getMasterPaymentSettings());
-      setReferrals(winoraEngine.getReferrals(currentUser.id));
+      setPaymentSettings(settings);
+      setMasterQrUrl(settings.qrCodeUrl || '');
+      setMasterPaymentUrl(settings.paymentUrl || '');
+      setMasterUpiId(settings.upiId || '');
+      setMasterAccountName(settings.accountHolderName || '');
+      setMasterInstructions(settings.instructions || '');
+      setReferrals(winoraEngine.getReferrals(user.id));
     };
 
     const unsub = winoraEngine.subscribe(handleUpdate);
@@ -89,6 +135,22 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
 
   // Quick preset deposit amounts
   const presetDeposits = [500, 1000, 2000, 5000, 10000];
+  const presetWithdrawals = [500, 1000, 2500, 5000];
+
+  // Save Master Deposit QR & Link Configuration
+  const handleSaveMasterDepositConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = winoraEngine.updateMasterPaymentSettings({
+      qrCodeUrl: masterQrUrl.trim(),
+      paymentUrl: masterPaymentUrl.trim(),
+      upiId: masterUpiId.trim(),
+      accountHolderName: masterAccountName.trim(),
+      instructions: masterInstructions.trim(),
+    });
+    setPaymentSettings(winoraEngine.getMasterPaymentSettings());
+    setShowMasterDepositEditor(false);
+    setDepositNotice({ type: 'success', text: 'Master Deposit QR code and payment link updated!' });
+  };
 
   // Deposit Submission Handler
   const handleSubmitDeposit = (e: React.FormEvent) => {
@@ -137,11 +199,6 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
       return;
     }
 
-    if (!withdrawUpiId.trim()) {
-      setWithdrawNotice({ type: 'error', text: 'Please enter a valid UPI ID for payout.' });
-      return;
-    }
-
     const amountPaise = rupeesToPaise(amountRupees);
 
     if (amountPaise > withdrawablePaise) {
@@ -152,24 +209,112 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
       return;
     }
 
+    if (amountPaise < paymentSettings.minWithdrawalPaise) {
+      setWithdrawNotice({
+        type: 'error',
+        text: `Minimum withdrawal is ₹${paymentSettings.minWithdrawalPaise / 100}.`,
+      });
+      return;
+    }
+
+    if (payoutMethod === 'UPI') {
+      if (!withdrawUpiId.trim() || !withdrawUpiId.includes('@')) {
+        setWithdrawNotice({ type: 'error', text: 'Please enter a valid UPI ID (e.g. mobile@paytm, user@oksbi).' });
+        return;
+      }
+      if (!withdrawAccountName.trim()) {
+        setWithdrawNotice({ type: 'error', text: 'Please enter the UPI account holder name.' });
+        return;
+      }
+    } else {
+      // BANK VALIDATION
+      if (!bankAccountNumber.trim() || bankAccountNumber.trim().length < 8) {
+        setWithdrawNotice({ type: 'error', text: 'Please enter a valid bank account number (at least 8 digits).' });
+        return;
+      }
+      if (bankAccountNumber.trim() !== confirmBankAccountNumber.trim()) {
+        setWithdrawNotice({ type: 'error', text: 'Bank account numbers do not match. Please recheck.' });
+        return;
+      }
+      if (!bankIfscCode.trim() || bankIfscCode.trim().length < 9) {
+        setWithdrawNotice({ type: 'error', text: 'Please enter a valid 11-character bank IFSC code (e.g. SBIN0001234).' });
+        return;
+      }
+      if (!bankHolderName.trim()) {
+        setWithdrawNotice({ type: 'error', text: 'Please enter the bank account holder name.' });
+        return;
+      }
+    }
+
     setWithdrawSubmitting(true);
 
     const res = winoraEngine.requestWithdrawal({
       playerId: currentUser.id,
       amountPaise,
-      upiId: withdrawUpiId.trim(),
-      accountName: withdrawAccountName.trim() || currentUser.displayName,
+      payoutMethod,
+      upiId: payoutMethod === 'UPI' ? withdrawUpiId.trim() : undefined,
+      bankAccount:
+        payoutMethod === 'BANK'
+          ? {
+              accountNumber: bankAccountNumber.trim(),
+              ifscCode: bankIfscCode.trim().toUpperCase(),
+              bankName: bankName.trim() || 'Direct Bank Transfer',
+              accountHolderName: bankHolderName.trim(),
+            }
+          : undefined,
+      accountName: payoutMethod === 'BANK' ? bankHolderName.trim() : withdrawAccountName.trim(),
       agentId: currentUser.assignedAgentId,
     });
 
     setWithdrawSubmitting(false);
 
     if (res.success) {
-      setWithdrawNotice({ type: 'success', text: res.message });
+      setWithdrawNotice({
+        type: 'success',
+        text: 'Withdrawal request submitted! Coins will be deducted from your wallet once Master verifies and executes the payout.',
+      });
       setWithdrawAmountRupees('');
+      setBankAccountNumber('');
+      setConfirmBankAccountNumber('');
+      setBankIfscCode('');
     } else {
       setWithdrawNotice({ type: 'error', text: res.message });
     }
+  };
+
+  // Master Direct Action Handlers from Wallet Page
+  const handleMasterApproveDeposit = (depositId: string) => {
+    const res = winoraEngine.approveDepositRequest(depositId);
+    setDepositNotice({ type: 'success', text: res.message });
+  };
+
+  const handleMasterRejectDeposit = (depositId: string) => {
+    const reason = prompt('Reason for rejecting deposit:');
+    if (!reason) return;
+    const res = winoraEngine.rejectDepositRequest(depositId, 'master-admin', reason);
+    setDepositNotice({ type: 'error', text: res.message });
+  };
+
+  const handleMasterApproveWithdrawal = (requestId: string) => {
+    const req = withdrawalRequests.find((r) => r.requestId === requestId);
+    const methodStr = req?.payoutMethod === 'BANK' ? 'Bank Account' : 'UPI';
+    const confirmDeduct = window.confirm(
+      `Confirm payout and deduct ₹${req ? (req.amountPaise / 100).toLocaleString() : ''} coins from ${req?.playerName}?\n` +
+      `Payout method: ${methodStr}. Coins will be permanently deducted upon your confirmation.`
+    );
+    if (!confirmDeduct) return;
+
+    const ref = prompt('Enter Bank / UPI transaction reference:', `IMPS-${Date.now().toString().slice(-8)}`);
+    if (!ref) return;
+    const res = winoraEngine.approveWithdrawal(requestId, 'master-admin', ref);
+    setWithdrawNotice({ type: 'success', text: res.message });
+  };
+
+  const handleMasterRejectWithdrawal = (requestId: string) => {
+    const reason = prompt('Reason for rejection (no coins deducted):');
+    if (!reason) return;
+    const res = winoraEngine.rejectWithdrawal(requestId, 'master-admin', reason);
+    setWithdrawNotice({ type: 'error', text: res.message });
   };
 
   const handleCopyReferral = () => {
@@ -443,392 +588,847 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: MANUAL DEPOSIT SYSTEM (Master Verified)                           */}
+      {/* TAB 2: COIN DEPOSIT SYSTEM (Master QR & Link Verified)                    */}
       {/* ========================================================================= */}
       {activeTab === 'deposit' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left: Master Payment Instructions & UPI Details */}
-          <div className="lg:col-span-5 bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
-                <ArrowDownLeft className="w-4 h-4 stroke-[2.5]" />
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-amber-500/10 via-zinc-900 to-zinc-900 border border-amber-500/30 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                <QrCode className="w-5 h-5 stroke-[2.5]" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-zinc-100">Master Payment Link</h3>
-                <span className="text-[10px] text-emerald-400 font-semibold">Official Payment Route</span>
+                <h2 className="text-base font-black text-zinc-100 flex items-center gap-2">
+                  <span>Coin Deposit Gateway</span>
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-500/30">
+                    1 Coin = ₹1.00
+                  </span>
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Scan Master QR code or open Master Payment Link, transfer via any UPI app, and submit your 12-digit UTR.
+                </p>
               </div>
             </div>
 
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-850 space-y-2">
-              <span className="text-[10px] uppercase font-bold text-zinc-400 block">UPI ID / VPA</span>
-              <div className="flex items-center justify-between bg-zinc-900 px-3 py-2 rounded-lg border border-zinc-800">
-                <span className="font-mono font-bold text-amber-300 text-xs">
-                  {paymentSettings.upiId || 'winora.gaming@icici'}
-                </span>
+            {/* Master Settings Button */}
+            <button
+              onClick={() => setShowMasterDepositEditor(!showMasterDepositEditor)}
+              className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shrink-0"
+            >
+              <Edit3 className="w-3.5 h-3.5 text-amber-400" />
+              <span>{showMasterDepositEditor ? 'Hide Master Editor' : 'Edit QR & Link (Master)'}</span>
+            </button>
+          </div>
+
+          {/* Master QR & Link Editor Modal / Drawer (when opened) */}
+          {showMasterDepositEditor && (
+            <form onSubmit={handleSaveMasterDepositConfig} className="bg-zinc-900 border-2 border-amber-500/40 p-5 rounded-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-amber-400 flex items-center gap-2">
+                    <Edit3 className="w-4 h-4" />
+                    <span>Master Controls: Update Deposit QR & Payment Link</span>
+                  </h3>
+                  <p className="text-xs text-zinc-400">
+                    Changes here immediately update the QR code, link, and payment instructions visible to all players.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(paymentSettings.upiId || 'winora.gaming@icici');
-                    alert('UPI ID copied!');
-                  }}
-                  className="text-zinc-400 hover:text-zinc-100 p-1"
+                  onClick={() => setShowMasterDepositEditor(false)}
+                  className="p-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-100"
                 >
-                  <Copy className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="pt-2">
-                <span className="text-[10px] uppercase font-bold text-zinc-400 block">Account Holder</span>
-                <span className="text-xs font-semibold text-zinc-200">
-                  {paymentSettings.accountHolderName || 'WINORA ENTERTAINMENT PVT LTD'}
-                </span>
-              </div>
-
-              {paymentSettings.paymentUrl && (
-                <div className="pt-2">
-                  <a
-                    href={paymentSettings.paymentUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="w-full py-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <span>Open Official Payment Link</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                </div>
-              )}
-            </div>
-
-            {/* Instructions */}
-            <div className="space-y-1.5 text-xs text-zinc-400">
-              <span className="font-bold text-zinc-200 block">Step-by-Step Instructions:</span>
-              <div className="whitespace-pre-line bg-zinc-950/60 p-3 rounded-xl border border-zinc-850 font-sans text-[11px] leading-relaxed text-zinc-300">
-                {paymentSettings.instructions ||
-                  '1. Pay to the official UPI ID.\n2. Copy the 12-digit UTR/Reference number.\n3. Submit the deposit form with proof screenshot.\n4. Master will verify and credit your Withdrawable Balance.'}
-              </div>
-            </div>
-
-            <div className="text-[11px] text-zinc-500 flex items-center justify-between pt-2 border-t border-zinc-800">
-              <span>Min: ₹{paymentSettings.minDepositPaise / 100}</span>
-              <span>Max: ₹{(paymentSettings.maxDepositPaise / 100).toLocaleString()}</span>
-            </div>
-          </div>
-
-          {/* Right: Submission Form & Player Deposit History */}
-          <div className="lg:col-span-7 space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4">
-              <h3 className="text-sm font-bold text-zinc-100">Submit Manual Deposit Details</h3>
-
-              {depositNotice && (
-                <div
-                  className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
-                    depositNotice.type === 'success'
-                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                      : 'bg-red-500/15 text-red-300 border border-red-500/30'
-                  }`}
-                >
-                  {depositNotice.type === 'success' ? (
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                  )}
-                  <span>{depositNotice.text}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmitDeposit} className="space-y-4">
-                {/* Amount */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Deposited Amount (₹)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">₹</span>
-                    <input
-                      type="number"
-                      value={depositAmountRupees}
-                      onChange={(e) => setDepositAmountRupees(e.target.value)}
-                      placeholder="1000"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-8 pr-4 py-2.5 text-zinc-100 text-sm font-mono focus:border-amber-500 focus:outline-none"
-                    />
-                  </div>
-
-                  {/* Preset amounts */}
-                  <div className="flex gap-2 mt-2">
-                    {presetDeposits.map((amt) => (
-                      <button
-                        key={amt}
-                        type="button"
-                        onClick={() => setDepositAmountRupees(amt.toString())}
-                        className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px] font-bold text-zinc-300"
-                      >
-                        ₹{amt}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* UTR Reference */}
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    UPI Transaction Reference / UTR Number (12 Digits)
-                  </label>
+                  <label className="block font-semibold text-zinc-300 mb-1">Official Master QR Code URL</label>
                   <input
                     type="text"
-                    value={depositUtr}
-                    onChange={(e) => setDepositUtr(e.target.value)}
-                    placeholder="e.g. 489201928312"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 text-sm font-mono focus:border-amber-500 focus:outline-none"
+                    value={masterQrUrl}
+                    onChange={(e) => setMasterQrUrl(e.target.value)}
+                    placeholder="https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=..."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 font-mono focus:border-amber-500 focus:outline-none"
                   />
                   <span className="text-[10px] text-zinc-500 mt-1 block">
-                    Find this 12-digit reference number in your Google Pay, PhonePe, or Banking app receipt.
+                    Paste an image URL for your UPI QR code. Leave empty to use auto-generated UPI QR.
                   </span>
                 </div>
 
-                {/* Proof Screenshot URL */}
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Payment Receipt Screenshot URL / Image Proof
-                  </label>
+                  <label className="block font-semibold text-zinc-300 mb-1">Official Master Payment Link</label>
                   <input
                     type="text"
-                    value={depositProofUrl}
-                    onChange={(e) => setDepositProofUrl(e.target.value)}
-                    placeholder="https://..."
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-zinc-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                    value={masterPaymentUrl}
+                    onChange={(e) => setMasterPaymentUrl(e.target.value)}
+                    placeholder="https://pay.winora.vip/deposit or upi://pay?pa=..."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 font-mono focus:border-amber-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-zinc-500 mt-1 block">
+                    Link given by Master for direct browser or gateway payments.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-zinc-300 mb-1">Master UPI ID (VPA)</label>
+                  <input
+                    type="text"
+                    value={masterUpiId}
+                    onChange={(e) => setMasterUpiId(e.target.value)}
+                    placeholder="winora.gaming@icici"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 font-mono focus:border-amber-500 focus:outline-none"
                   />
                 </div>
 
+                <div>
+                  <label className="block font-semibold text-zinc-300 mb-1">Account Holder / Beneficiary Name</label>
+                  <input
+                    type="text"
+                    value={masterAccountName}
+                    onChange={(e) => setMasterAccountName(e.target.value)}
+                    placeholder="WINORA ENTERTAINMENT PVT LTD"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block font-semibold text-zinc-300 mb-1">Deposit Instructions for Players</label>
+                  <textarea
+                    rows={2}
+                    value={masterInstructions}
+                    onChange={(e) => setMasterInstructions(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-zinc-100 focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowMasterDepositEditor(false)}
+                  className="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-300 font-bold text-xs"
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
-                  disabled={depositSubmitting}
-                  className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-xs flex items-center gap-1.5 shadow"
                 >
-                  <Send className="w-4 h-4" />
-                  <span>{depositSubmitting ? 'Submitting...' : 'Submit for Master Verification'}</span>
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Save Master Configuration</span>
                 </button>
-              </form>
+              </div>
+            </form>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column: Official Master QR & Payment Link */}
+            <div className="lg:col-span-5 space-y-4">
+              <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                      <QrCode className="w-4 h-4" />
+                    </div>
+                    <h3 className="text-sm font-bold text-zinc-100">Master Deposit QR Code</h3>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    Official Master Route
+                  </span>
+                </div>
+
+                {/* QR Code Container */}
+                <div className="bg-white p-4 rounded-2xl flex flex-col items-center justify-center shadow-lg border border-zinc-200">
+                  <div className="w-56 h-56 relative flex items-center justify-center">
+                    <img
+                      src={
+                        paymentSettings.qrCodeUrl ||
+                        `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(
+                          `upi://pay?pa=${paymentSettings.upiId || 'winora.gaming@icici'}&pn=${encodeURIComponent(
+                            paymentSettings.accountHolderName || 'WINORA ENTERTAINMENT'
+                          )}&cu=INR`
+                        )}`
+                      }
+                      alt="Master Payment QR"
+                      className="w-full h-full object-contain rounded-lg"
+                    />
+                  </div>
+                  <p className="text-[11px] text-zinc-700 font-semibold mt-2 text-center">
+                    Scan with Google Pay, PhonePe, Paytm, BHIM, or any UPI App
+                  </p>
+                </div>
+
+                {/* Master Official Payment Link Box */}
+                <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 space-y-2">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 block flex items-center justify-between">
+                    <span>Master Official Payment Link</span>
+                    <span className="text-amber-400">Direct Transfer</span>
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={paymentSettings.paymentUrl || `https://pay.winora.vip/upi?id=${paymentSettings.upiId || 'winora.gaming@icici'}`}
+                      className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-amber-300 font-mono truncate"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const linkToCopy = paymentSettings.paymentUrl || `https://pay.winora.vip/upi?id=${paymentSettings.upiId || 'winora.gaming@icici'}`;
+                        navigator.clipboard.writeText(linkToCopy);
+                        setCopiedLink(true);
+                        setTimeout(() => setCopiedLink(false), 2000);
+                      }}
+                      className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs flex items-center gap-1 shrink-0"
+                      title="Copy Payment Link"
+                    >
+                      {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                    {paymentSettings.paymentUrl && (
+                      <a
+                        href={paymentSettings.paymentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs flex items-center gap-1 shrink-0 border border-emerald-500/30 font-bold"
+                        title="Open Payment Link"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {/* Master UPI ID & Beneficiary */}
+                <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 space-y-2.5">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-zinc-400 block mb-1">Official UPI ID (VPA)</span>
+                    <div className="flex items-center justify-between bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-800">
+                      <span className="font-mono font-bold text-amber-300 text-xs">
+                        {paymentSettings.upiId || 'winora.gaming@icici'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(paymentSettings.upiId || 'winora.gaming@icici');
+                          setCopiedUpi(true);
+                          setTimeout(() => setCopiedUpi(false), 2000);
+                        }}
+                        className="text-zinc-400 hover:text-zinc-100 p-1 flex items-center gap-1 text-[11px]"
+                      >
+                        {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span className="text-[10px]">{copiedUpi ? 'Copied' : 'Copy'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-zinc-400 block mb-0.5">Account Holder Name</span>
+                    <span className="text-xs font-semibold text-zinc-200">
+                      {paymentSettings.accountHolderName || 'WINORA ENTERTAINMENT PVT LTD'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Instructions */}
+                <div className="space-y-1.5 text-xs text-zinc-400">
+                  <span className="font-bold text-zinc-200 block">How to Deposit:</span>
+                  <div className="whitespace-pre-line bg-zinc-950/60 p-3 rounded-xl border border-zinc-850 font-sans text-[11px] leading-relaxed text-zinc-300">
+                    {paymentSettings.instructions ||
+                      '1. Scan the QR code above or open the Master payment link.\n2. Transfer the desired amount and copy the 12-digit UTR/Reference number.\n3. Submit the deposit request form with the UTR number.\n4. Master will verify and credit coins to your Withdrawable Balance.'}
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-zinc-500 flex items-center justify-between pt-2 border-t border-zinc-800">
+                  <span>Min Deposit: ₹{paymentSettings.minDepositPaise / 100}</span>
+                  <span>Max Deposit: ₹{(paymentSettings.maxDepositPaise / 100).toLocaleString()}</span>
+                </div>
+              </div>
             </div>
 
-            {/* Player's Deposit Submissions */}
-            <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-3">
-              <h3 className="text-sm font-bold text-zinc-100">Your Submitted Deposits</h3>
-              {playerDeposits.length === 0 ? (
-                <p className="text-xs text-zinc-500 py-4 text-center">No deposit submissions found.</p>
-              ) : (
-                <div className="divide-y divide-zinc-800">
-                  {playerDeposits.map((dep) => (
-                    <div key={dep.depositId} className="py-3 flex items-center justify-between text-xs">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-zinc-200">
-                            ₹{(dep.submittedAmountPaise / 100).toLocaleString()}
-                          </span>
-                          <span
-                            className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
-                              dep.status === 'APPROVED'
-                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                : dep.status === 'REJECTED'
-                                ? 'bg-red-500/15 text-red-400 border-red-500/30'
-                                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                            }`}
-                          >
-                            {dep.status}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-zinc-400 font-mono block mt-0.5">
-                          UTR: {dep.transactionReference} • {new Date(dep.submittedAt).toLocaleTimeString()}
-                        </span>
-                        {dep.reviewNote && (
-                          <span className="text-[10px] text-zinc-500 italic block mt-0.5">
-                            Note: {dep.reviewNote}
-                          </span>
-                        )}
-                      </div>
+            {/* Right Column: Player Deposit Submission Form & History */}
+            <div className="lg:col-span-7 space-y-6">
+              <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4">
+                <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                  <Coins className="w-4 h-4 text-amber-400" />
+                  <span>Submit Coin Deposit Request</span>
+                </h3>
 
-                      {dep.screenshotUrl && (
-                        <a
-                          href={dep.screenshotUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[10px] text-amber-400 hover:underline flex items-center gap-1"
-                        >
-                          <span>Proof</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      )}
+                {depositNotice && (
+                  <div
+                    className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                      depositNotice.type === 'success'
+                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-red-500/15 text-red-300 border border-red-500/30'
+                    }`}
+                  >
+                    {depositNotice.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{depositNotice.text}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmitDeposit} className="space-y-4">
+                  {/* Amount */}
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                      Deposit Amount (Coins / ₹)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">₹</span>
+                      <input
+                        type="number"
+                        value={depositAmountRupees}
+                        onChange={(e) => setDepositAmountRupees(e.target.value)}
+                        placeholder="1000"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-8 pr-4 py-2.5 text-zinc-100 text-sm font-mono focus:border-amber-500 focus:outline-none"
+                      />
                     </div>
-                  ))}
+
+                    {/* Preset amounts */}
+                    <div className="flex gap-2 mt-2">
+                      {presetDeposits.map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setDepositAmountRupees(amt.toString())}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px] font-bold text-zinc-300 cursor-pointer"
+                        >
+                          ₹{amt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* UTR Reference */}
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                      12-Digit UPI UTR / Reference Number
+                    </label>
+                    <input
+                      type="text"
+                      value={depositUtr}
+                      onChange={(e) => setDepositUtr(e.target.value)}
+                      placeholder="e.g. 489201928312"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 text-sm font-mono focus:border-amber-500 focus:outline-none"
+                    />
+                    <span className="text-[10px] text-zinc-500 mt-1 block">
+                      Locate this in your UPI payment receipt (Google Pay, PhonePe, Paytm, BHIM, etc.)
+                    </span>
+                  </div>
+
+                  {/* Screenshot Proof URL */}
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                      Payment Screenshot Proof URL
+                    </label>
+                    <input
+                      type="text"
+                      value={depositProofUrl}
+                      onChange={(e) => setDepositProofUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-zinc-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={depositSubmitting}
+                    className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>{depositSubmitting ? 'Submitting...' : 'Submit Deposit for Master Confirmation'}</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Submitted Deposits History */}
+              <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-zinc-100">Your Submitted Deposit Requests</h3>
+                  <span className="text-xs text-zinc-500 font-mono">
+                    Total: {playerDeposits.length}
+                  </span>
                 </div>
-              )}
+
+                {playerDeposits.length === 0 ? (
+                  <p className="text-xs text-zinc-500 py-6 text-center">No deposit submissions found.</p>
+                ) : (
+                  <div className="divide-y divide-zinc-800">
+                    {playerDeposits.map((dep) => (
+                      <div key={dep.depositId} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-zinc-200 text-sm">
+                              ₹{(dep.submittedAmountPaise / 100).toLocaleString()} ({Math.floor(dep.submittedAmountPaise / 100).toLocaleString()} Coins)
+                            </span>
+                            <span
+                              className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
+                                dep.status === 'APPROVED'
+                                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                  : dep.status === 'REJECTED'
+                                  ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                                  : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                              }`}
+                            >
+                              {dep.status}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-zinc-400 font-mono block mt-0.5">
+                            UTR: {dep.transactionReference} • {new Date(dep.submittedAt).toLocaleTimeString()}
+                          </span>
+                          {dep.reviewNote && (
+                            <span className="text-[10px] text-zinc-500 italic block mt-0.5">
+                              Master Note: {dep.reviewNote}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          {dep.screenshotUrl && (
+                            <a
+                              href={dep.screenshotUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 bg-zinc-800 px-2 py-1 rounded"
+                            >
+                              <span>View Receipt</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+
+                          {/* Master inline approval/rejection */}
+                          {isMaster && dep.status === 'PENDING' && (
+                            <div className="flex items-center gap-1.5 ml-2">
+                              <button
+                                onClick={() => handleMasterApproveDeposit(dep.depositId)}
+                                className="px-2.5 py-1 rounded bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-[11px]"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleMasterRejectDeposit(dep.depositId)}
+                                className="px-2.5 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/30 text-[11px]"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 3: WITHDRAWAL SYSTEM                                                  */}
+      {/* TAB 3: COIN WITHDRAWAL SYSTEM (UPI & Bank Account)                        */}
       {/* ========================================================================= */}
       {activeTab === 'withdrawal' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-5 bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                <ArrowUpRight className="w-4 h-4 stroke-[2.5]" />
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-emerald-500/10 via-zinc-900 to-zinc-900 border border-emerald-500/30 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30">
+                <ArrowUpRight className="w-5 h-5 stroke-[2.5]" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-zinc-100">Withdrawal Rules</h3>
-                <span className="text-[10px] text-emerald-400 font-semibold">Strict Withdrawable Balance Only</span>
+                <h2 className="text-base font-black text-zinc-100 flex items-center gap-2">
+                  <span>Coin Withdrawal Portal</span>
+                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    UPI & Bank Account
+                  </span>
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Select your payout method (UPI or Direct Bank Transfer) and submit for Master verification.
+                </p>
               </div>
             </div>
 
-            <div className="space-y-2 text-xs text-zinc-300 bg-zinc-950 p-4 rounded-xl border border-zinc-850 leading-relaxed">
-              <p>
-                • You can only withdraw from your <strong>Withdrawable Balance</strong> ({formatPaise(withdrawablePaise)}).
-              </p>
-              <p>
-                • <strong>Bonus Balance ({formatPaise(bonusPaise)}) cannot be withdrawn</strong> under any circumstances.
-              </p>
-              <p>
-                • Upon submission, funds are <strong>atomically held/reserved</strong> from your balance.
-              </p>
-              <p>
-                • If Master or Agent rejects your payout, reserved funds are <strong>immediately refunded</strong> to your Withdrawable Balance.
-              </p>
-            </div>
-
-            <div className="text-[11px] text-zinc-400 pt-2 border-t border-zinc-800 flex justify-between">
-              <span>Min: ₹{paymentSettings.minWithdrawalPaise / 100}</span>
-              <span>Max: ₹{(paymentSettings.maxWithdrawalPaise / 100).toLocaleString()}</span>
+            <div className="bg-zinc-950/80 px-4 py-2 rounded-xl border border-zinc-800 text-right shrink-0">
+              <span className="text-[10px] uppercase font-bold text-zinc-400 block">Available Withdrawable</span>
+              <span className="text-base font-black text-emerald-400 font-mono">
+                {formatPaise(withdrawablePaise)}
+              </span>
             </div>
           </div>
 
-          <div className="lg:col-span-7 space-y-6">
-            <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4">
-              <h3 className="text-sm font-bold text-zinc-100">Request Payout to UPI</h3>
-
-              {withdrawNotice && (
-                <div
-                  className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
-                    withdrawNotice.type === 'success'
-                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                      : 'bg-red-500/15 text-red-300 border border-red-500/30'
-                  }`}
-                >
-                  {withdrawNotice.type === 'success' ? (
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                  )}
-                  <span>{withdrawNotice.text}</span>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column: Authoritative Rules & Policy */}
+            <div className="lg:col-span-5 bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4 stroke-[2.5]" />
                 </div>
-              )}
-
-              <form onSubmit={handleSubmitWithdrawal} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Withdrawal Amount (₹)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">₹</span>
-                    <input
-                      type="number"
-                      value={withdrawAmountRupees}
-                      onChange={(e) => setWithdrawAmountRupees(e.target.value)}
-                      placeholder="500"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-8 pr-4 py-2.5 text-zinc-100 text-sm font-mono focus:border-amber-500 focus:outline-none"
-                    />
-                  </div>
-                  <span className="text-[10px] text-zinc-500 mt-1 block">
-                    Available Withdrawable: {formatPaise(withdrawablePaise)}
+                  <h3 className="text-sm font-bold text-zinc-100">Withdrawal & Coin Rules</h3>
+                  <span className="text-[10px] text-emerald-400 font-semibold">Master Confirmed Flow</span>
+                </div>
+              </div>
+
+              {/* Master Confirmation Callout */}
+              <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-xl space-y-1.5 text-xs">
+                <div className="flex items-center gap-2 text-amber-400 font-bold">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>Coins Deducted After Master Confirmation</span>
+                </div>
+                <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                  Your coins will safely stay in your balance when you submit. Coins will be permanently deducted from your wallet <strong>only after the Master confirms and executes your payout</strong>.
+                </p>
+              </div>
+
+              <div className="space-y-2 text-xs text-zinc-300 bg-zinc-950 p-4 rounded-xl border border-zinc-850 leading-relaxed">
+                <p>
+                  • <strong>Withdrawable Balance Only:</strong> You can only withdraw from your Withdrawable Balance ({formatPaise(withdrawablePaise)}).
+                </p>
+                <p>
+                  • <strong>Bonus Protection Balance:</strong> Non-withdrawable ({formatPaise(bonusPaise)}). Reserved solely for hourly safety refunds and game betting.
+                </p>
+                <p>
+                  • <strong>Payout Methods Supported:</strong> Instant UPI VPA transfer or Direct Bank Account IMPS/NEFT.
+                </p>
+                <p>
+                  • <strong>Rejections:</strong> If Master rejects the request, zero coins are deducted.
+                </p>
+              </div>
+
+              <div className="text-[11px] text-zinc-400 pt-2 border-t border-zinc-800 flex justify-between">
+                <span>Min Withdrawal: ₹{paymentSettings.minWithdrawalPaise / 100}</span>
+                <span>Max Withdrawal: ₹{(paymentSettings.maxWithdrawalPaise / 100).toLocaleString()}</span>
+              </div>
+            </div>
+
+            {/* Right Column: Withdrawal Form & Player Requests */}
+            <div className="lg:col-span-7 space-y-6">
+              <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-zinc-100">Request Coin Withdrawal</h3>
+                  <span className="text-[11px] text-zinc-400">
+                    Bal: <strong className="text-emerald-400 font-mono">{formatPaise(withdrawablePaise)}</strong>
                   </span>
                 </div>
 
+                {withdrawNotice && (
+                  <div
+                    className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                      withdrawNotice.type === 'success'
+                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                        : 'bg-red-500/15 text-red-300 border border-red-500/30'
+                    }`}
+                  >
+                    {withdrawNotice.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{withdrawNotice.text}</span>
+                  </div>
+                )}
+
+                {/* Method Switcher Tabs */}
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Recipient UPI ID (VPA)
-                  </label>
-                  <input
-                    type="text"
-                    value={withdrawUpiId}
-                    onChange={(e) => setWithdrawUpiId(e.target.value)}
-                    placeholder="e.g. yourname@oksbi"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 text-sm font-mono focus:border-amber-500 focus:outline-none"
-                  />
+                  <label className="block text-xs font-semibold text-zinc-300 mb-1.5">Choose Payout Method</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPayoutMethod('UPI')}
+                      className={`py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                        payoutMethod === 'UPI'
+                          ? 'bg-amber-500 text-zinc-950 border-amber-400 shadow'
+                          : 'bg-zinc-950 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                      }`}
+                    >
+                      <Smartphone className="w-4 h-4" />
+                      <span>UPI ID (Instant)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPayoutMethod('BANK')}
+                      className={`py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border transition-all cursor-pointer ${
+                        payoutMethod === 'BANK'
+                          ? 'bg-amber-500 text-zinc-950 border-amber-400 shadow'
+                          : 'bg-zinc-950 text-zinc-300 border-zinc-800 hover:border-zinc-700'
+                      }`}
+                    >
+                      <Building2 className="w-4 h-4" />
+                      <span>Bank Account Transfer</span>
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-zinc-300 mb-1">
-                    Beneficiary Account Holder Name
-                  </label>
-                  <input
-                    type="text"
-                    value={withdrawAccountName}
-                    onChange={(e) => setWithdrawAccountName(e.target.value)}
-                    placeholder="Account Name"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 text-sm focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
+                <form onSubmit={handleSubmitWithdrawal} className="space-y-4">
+                  {/* Amount Field */}
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                      Withdrawal Amount (Coins / ₹)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 font-bold">₹</span>
+                      <input
+                        type="number"
+                        value={withdrawAmountRupees}
+                        onChange={(e) => setWithdrawAmountRupees(e.target.value)}
+                        placeholder="500"
+                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-8 pr-4 py-2.5 text-zinc-100 text-sm font-mono focus:border-amber-500 focus:outline-none"
+                      />
+                    </div>
 
-                <button
-                  type="submit"
-                  disabled={withdrawSubmitting || withdrawablePaise <= 0}
-                  className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>{withdrawSubmitting ? 'Processing...' : 'Submit Withdrawal Request'}</span>
-                </button>
-              </form>
-            </div>
+                    {/* Presets */}
+                    <div className="flex gap-2 mt-2">
+                      {presetWithdrawals.map((amt) => (
+                        <button
+                          key={amt}
+                          type="button"
+                          onClick={() => setWithdrawAmountRupees(amt.toString())}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px] font-bold text-zinc-300 cursor-pointer"
+                        >
+                          ₹{amt}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => setWithdrawAmountRupees((withdrawablePaise / 100).toString())}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-[11px] font-bold cursor-pointer border border-emerald-500/30"
+                      >
+                        Max All
+                      </button>
+                    </div>
+                  </div>
 
-            {/* Withdrawal Requests History */}
-            <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-3">
-              <h3 className="text-sm font-bold text-zinc-100">Your Withdrawal Requests</h3>
-              {playerWithdrawals.length === 0 ? (
-                <p className="text-xs text-zinc-500 py-4 text-center">No withdrawal requests found.</p>
-              ) : (
-                <div className="divide-y divide-zinc-800">
-                  {playerWithdrawals.map((req) => (
-                    <div key={req.requestId} className="py-3 flex items-center justify-between text-xs">
+                  {/* UPI FIELDS */}
+                  {payoutMethod === 'UPI' && (
+                    <div className="space-y-3 bg-zinc-950/60 p-3.5 rounded-xl border border-zinc-800">
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-zinc-200">
-                            {formatPaise(req.amountPaise)}
-                          </span>
-                          <span
-                            className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
-                              req.status === 'APPROVED'
-                                ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                : req.status === 'REJECTED'
-                                ? 'bg-red-500/15 text-red-400 border-red-500/30'
-                                : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                            }`}
-                          >
-                            {req.status}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-zinc-400 font-mono block mt-0.5">
-                          UPI: {req.upiId} • Ref: {req.requestId}
-                        </span>
-                        {req.payoutReference && (
-                          <span className="text-[10px] text-emerald-400 font-mono block">
-                            Payout Ref: {req.payoutReference}
-                          </span>
-                        )}
-                        {req.rejectionReason && (
-                          <span className="text-[10px] text-red-400 italic block">
-                            Rejection: {req.rejectionReason} (Refunded)
-                          </span>
-                        )}
+                        <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                          Recipient UPI ID (VPA)
+                        </label>
+                        <input
+                          type="text"
+                          value={withdrawUpiId}
+                          onChange={(e) => setWithdrawUpiId(e.target.value)}
+                          placeholder="e.g. yourname@oksbi or 9876543210@paytm"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 text-sm font-mono focus:border-amber-500 focus:outline-none"
+                        />
                       </div>
 
-                      <span className="text-[10px] text-zinc-500">
-                        {new Date(req.createdAt).toLocaleDateString()}
-                      </span>
+                      <div>
+                        <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                          Beneficiary Account Holder Name
+                        </label>
+                        <input
+                          type="text"
+                          value={withdrawAccountName}
+                          onChange={(e) => setWithdrawAccountName(e.target.value)}
+                          placeholder="Name as registered on UPI"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 text-sm focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
                     </div>
-                  ))}
+                  )}
+
+                  {/* BANK ACCOUNT FIELDS */}
+                  {payoutMethod === 'BANK' && (
+                    <div className="space-y-3 bg-zinc-950/60 p-3.5 rounded-xl border border-zinc-800">
+                      <div>
+                        <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                          Bank Name
+                        </label>
+                        <input
+                          type="text"
+                          value={bankName}
+                          onChange={(e) => setBankName(e.target.value)}
+                          placeholder="e.g. State Bank of India, HDFC Bank, ICICI Bank"
+                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-zinc-100 text-xs focus:border-amber-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                            Bank Account Number
+                          </label>
+                          <input
+                            type="text"
+                            value={bankAccountNumber}
+                            onChange={(e) => setBankAccountNumber(e.target.value)}
+                            placeholder="e.g. 50100234123456"
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-zinc-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                            Confirm Account Number
+                          </label>
+                          <input
+                            type="text"
+                            value={confirmBankAccountNumber}
+                            onChange={(e) => setConfirmBankAccountNumber(e.target.value)}
+                            placeholder="Re-enter account number"
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-zinc-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                            Bank IFSC Code
+                          </label>
+                          <input
+                            type="text"
+                            value={bankIfscCode}
+                            onChange={(e) => setBankIfscCode(e.target.value.toUpperCase())}
+                            placeholder="e.g. SBIN0001234"
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-zinc-100 text-xs font-mono uppercase focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                            Account Holder Name (as in Passbook)
+                          </label>
+                          <input
+                            type="text"
+                            value={bankHolderName}
+                            onChange={(e) => setBankHolderName(e.target.value)}
+                            placeholder="Exact name in bank account"
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-zinc-100 text-xs focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-[11px] text-zinc-500 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Coins are deducted from your wallet only after Master reviews and executes payout.</span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={withdrawSubmitting || withdrawablePaise <= 0}
+                    className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black text-xs uppercase tracking-wider transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>{withdrawSubmitting ? 'Submitting...' : 'Submit Withdrawal for Master Payout'}</span>
+                  </button>
+                </form>
+              </div>
+
+              {/* Player Withdrawal Requests History */}
+              <div className="bg-zinc-900 border border-zinc-800 p-5 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-zinc-100">Your Withdrawal History</h3>
+                  <span className="text-xs text-zinc-500 font-mono">
+                    Total: {playerWithdrawals.length}
+                  </span>
                 </div>
-              )}
+
+                {playerWithdrawals.length === 0 ? (
+                  <p className="text-xs text-zinc-500 py-6 text-center">No withdrawal requests found.</p>
+                ) : (
+                  <div className="divide-y divide-zinc-800">
+                    {playerWithdrawals.map((req) => (
+                      <div key={req.requestId} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-bold text-zinc-200 text-sm">
+                              {formatPaise(req.amountPaise)} ({Math.floor(req.amountPaise / 100).toLocaleString()} Coins)
+                            </span>
+                            <span
+                              className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
+                                req.status === 'APPROVED'
+                                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                  : req.status === 'REJECTED'
+                                  ? 'bg-red-500/15 text-red-400 border-red-500/30'
+                                  : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                              }`}
+                            >
+                              {req.status === 'PENDING' ? 'Pending Master Confirmation' : req.status}
+                            </span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 flex items-center gap-1">
+                              {req.payoutMethod === 'BANK' || req.bankAccount ? (
+                                <>
+                                  <Building2 className="w-3 h-3 text-cyan-400" />
+                                  <span>Bank</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Smartphone className="w-3 h-3 text-amber-400" />
+                                  <span>UPI</span>
+                                </>
+                              )}
+                            </span>
+                          </div>
+
+                          {/* Destination info */}
+                          {req.payoutMethod === 'BANK' || req.bankAccount ? (
+                            <p className="text-[11px] text-zinc-400 font-mono">
+                              Bank: {req.bankAccount?.bankName || 'Direct'} • A/C: ••••{req.bankAccount?.accountNumber.slice(-4)} • IFSC: {req.bankAccount?.ifscCode}
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-zinc-400 font-mono">
+                              UPI: {req.upiId} • Holder: {req.accountName}
+                            </p>
+                          )}
+
+                          <div className="text-[10px] text-zinc-500 flex flex-wrap items-center gap-2">
+                            <span>Req ID: {req.requestId}</span>
+                            <span>•</span>
+                            <span>{new Date(req.createdAt).toLocaleString()}</span>
+                            {req.status === 'PENDING' && (
+                              <span className="text-amber-400 font-medium">
+                                • Coins will deduct upon Master confirmation
+                              </span>
+                            )}
+                            {req.payoutReference && (
+                              <span className="text-emerald-400 font-mono">
+                                • Payout Ref: {req.payoutReference} (Coins Deducted)
+                              </span>
+                            )}
+                            {req.rejectionReason && (
+                              <span className="text-red-400 italic">
+                                • Rejection: {req.rejectionReason} (No Coins Deducted)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* If Master is viewing, quick approval button */}
+                        {isMaster && req.status === 'PENDING' && (
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => handleMasterApproveWithdrawal(req.requestId)}
+                              className="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <Check className="w-3 h-3" />
+                              <span>Confirm & Deduct</span>
+                            </button>
+                            <button
+                              onClick={() => handleMasterRejectWithdrawal(req.requestId)}
+                              className="px-2.5 py-1.5 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold cursor-pointer"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -251,23 +251,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </div>
         )}
 
-        {/* Quick Fill Suggestion */}
-        {step === 'phone' && (
-          <div className="bg-zinc-950/70 border border-zinc-800 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2 text-zinc-400">
-              <Phone className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Mobile identity: No passwords required.</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => handleFillTestNumber('+91', '9876543210', '123456')}
-              className="text-[11px] px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-400 font-semibold cursor-pointer border border-zinc-700"
-            >
-              Test Number
-            </button>
-          </div>
-        )}
-
         {/* Success Alert */}
         {successMessage && (
           <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
@@ -453,17 +436,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </form>
         )}
 
-        {/* Switch to Register & Demo Sign-In */}
+        {/* Switch to Register */}
         <div className="pt-4 border-t border-zinc-800/80 space-y-3 text-center">
-          <button
-            id="login-demo-btn"
-            type="button"
-            onClick={() => onLoginSuccess('Demo Player', '+91 98765 43210')}
-            className="w-full py-2.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/60 text-zinc-300 font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Instant Demo Sign-In (Preview Mode)</span>
-          </button>
           <p className="text-xs text-zinc-400">
             First time playing on WINORA?{' '}
             <button
@@ -481,14 +455,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           <span>Verified Phone Identity • Secure Account Wallet</span>
         </div>
       </div>
-
-      {/* Firebase Setup & Test Numbers Helper */}
-      {!isRegionError && (
-        <SmsRegionHelper
-          isErrorTriggered={false}
-          onFillTestNumber={handleFillTestNumber}
-        />
-      )}
     </div>
   );
 };

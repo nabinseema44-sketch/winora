@@ -40,7 +40,11 @@ export const CoinWalletPanel: React.FC<Props> = ({ user, onToast }) => {
       setMasterLink(info.url || '');
       setMasterMessage(info.message || 'Contact your assigned Agent for manual coin transfer instructions.');
     } catch (e: any) {
-      setError(e?.message || 'Unable to load coin wallet.');
+      const fallbackPaise = user.withdrawableBalancePaise || 0;
+      setBalance(fallbackPaise / 100);
+      if (e?.message !== 'Please sign in first.') {
+        setError(e?.message || 'Unable to load coin wallet.');
+      }
     } finally {
       setLoading(false);
     }

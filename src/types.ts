@@ -106,7 +106,7 @@ export interface UserProfile {
   walletBalance: number; // In rupees for display / compatibility
   mainBalance: number;   // In rupees for display / compatibility
   currency: CurrencyConfig;
-  avatar: string;
+  avatar?: string;
   tier: 'Bronze' | 'Silver' | 'Gold' | 'Diamond';
   joinedDate: string;
   level: number;
@@ -422,13 +422,22 @@ export interface DepositRequestRecord {
   reviewNote?: string;
 }
 
+export interface BankAccountDetails {
+  accountNumber: string;
+  ifscCode: string;
+  bankName?: string;
+  accountHolderName: string;
+}
+
 export interface WithdrawalRequestRecord {
   requestId: string;
   playerId: string;
   playerName: string;
   playerPhone?: string;
   amountPaise: number;
-  upiId: string;
+  payoutMethod?: 'UPI' | 'BANK';
+  upiId?: string;
+  bankAccount?: BankAccountDetails;
   accountName: string;
   status: 'PENDING' | 'PROCESSING' | 'APPROVED' | 'REJECTED';
   createdAt: string;
@@ -453,6 +462,7 @@ export interface AgentCommissionRecord {
 export interface MasterPaymentSettings {
   enabled: boolean;
   paymentUrl: string;
+  qrCodeUrl?: string;
   upiId: string;
   accountHolderName: string;
   instructions: string;

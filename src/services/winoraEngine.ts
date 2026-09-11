@@ -137,7 +137,6 @@ export const MOCK_AGENTS: UserProfile[] = [
     walletBalance: 45000,
     mainBalance: 45000,
     currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     tier: 'Diamond',
     joinedDate: 'January 2026',
     level: 12,
@@ -163,7 +162,6 @@ export const MOCK_AGENTS: UserProfile[] = [
     walletBalance: 32000,
     mainBalance: 32000,
     currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
     tier: 'Gold',
     joinedDate: 'February 2026',
     level: 8,
@@ -191,7 +189,6 @@ export const MOCK_MASTER: UserProfile = {
   walletBalance: 1250000,
   mainBalance: 1250000,
   currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
   tier: 'Diamond',
   joinedDate: 'January 2025',
   level: 99,
@@ -561,10 +558,28 @@ export const INITIAL_WITHDRAWAL_REQUESTS: WithdrawalRequestRecord[] = [
     playerName: 'Arjun Mehta',
     playerPhone: '+91 98765 43210',
     amountPaise: 100000, // ₹1,000
+    payoutMethod: 'UPI',
     upiId: 'arjun.mehta@oksbi',
     accountName: 'Arjun Mehta',
     status: 'PENDING',
     createdAt: new Date(Date.now() - 45 * 60000).toISOString(),
+  },
+  {
+    requestId: 'WTH-REQ-502',
+    playerId: 'player-sneha',
+    playerName: 'Sneha Roy',
+    playerPhone: '+91 98222 33445',
+    amountPaise: 200000, // ₹2,000
+    payoutMethod: 'BANK',
+    accountName: 'Sneha Roy',
+    bankAccount: {
+      accountNumber: '918273645019',
+      ifscCode: 'HDFC0001234',
+      bankName: 'HDFC Bank',
+      accountHolderName: 'Sneha Roy',
+    },
+    status: 'PENDING',
+    createdAt: new Date(Date.now() - 20 * 60000).toISOString(),
   },
   {
     requestId: 'WTH-REQ-498',
@@ -572,6 +587,7 @@ export const INITIAL_WITHDRAWAL_REQUESTS: WithdrawalRequestRecord[] = [
     playerName: 'Sumit Joshi',
     playerPhone: '+91 98333 44556',
     amountPaise: 250000, // ₹2,500
+    payoutMethod: 'UPI',
     upiId: 'sumit.joshi@icici',
     accountName: 'Sumit Joshi',
     status: 'APPROVED',
@@ -585,10 +601,11 @@ export const INITIAL_WITHDRAWAL_REQUESTS: WithdrawalRequestRecord[] = [
 export const INITIAL_MASTER_PAYMENT_SETTINGS: MasterPaymentSettings = {
   enabled: true,
   paymentUrl: 'https://pay.winora.vip/instant-upi',
+  qrCodeUrl: 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=upi%3A%2F%2Fpay%3Fpa%3Dwinora.gaming%40icici%26pn%3DWINORA%2520ENTERTAINMENT%2520PVT%2520LTD%26cu%3DINR',
   upiId: 'winora.gaming@icici',
   accountHolderName: 'WINORA ENTERTAINMENT PVT LTD',
   instructions:
-    '1. Scan the official UPI QR code or pay to the UPI ID.\n2. Note the 12-digit UTR/Reference number from your banking app.\n3. Enter the exact deposited amount and transaction reference.\n4. Upload the payment receipt screenshot.\n5. Master will verify and credit your Withdrawable Balance promptly.',
+    '1. Scan the official UPI QR code or click the payment link.\n2. Note the 12-digit UTR/Reference number from your banking app.\n3. Enter the deposited coin amount and transaction reference.\n4. Submit the deposit form.\n5. Master will verify and credit coins to your Withdrawable Balance.',
   minDepositPaise: 10000, // ₹100
   maxDepositPaise: 5000000, // ₹50,000
   minWithdrawalPaise: 50000, // ₹500
@@ -663,12 +680,11 @@ class WinoraStateManager {
       id: 'player-sneha',
       displayName: 'Sneha Roy',
       phoneNumber: '+91 98222 33445',
-      withdrawableBalancePaise: 150000, // ₹1,500
-      bonusBalancePaise: 10000,        // ₹100
-      walletBalance: 1500,
-      mainBalance: 1600,
+      withdrawableBalancePaise: 0, // ₹0.00
+      bonusBalancePaise: 0,        // ₹0.00
+      walletBalance: 0,
+      mainBalance: 0,
       currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80',
       tier: 'Bronze',
       joinedDate: 'March 2026',
       level: 1,
@@ -681,18 +697,17 @@ class WinoraStateManager {
       referralCode: 'WINSNEHA9',
       referredByUserId: 'player-arjun',
       hasMadeFirstDeposit: false,
-      stats: { gamesPlayed: 5, highestVirtualWin: 900, favoriteCategory: 'Kalyan Morning', winRate: '20%' },
+      stats: { gamesPlayed: 0, highestVirtualWin: 0, favoriteCategory: 'Hourly Play', winRate: '0%' },
     },
     {
       id: 'player-sumit',
       displayName: 'Sumit Joshi',
       phoneNumber: '+91 98333 44556',
-      withdrawableBalancePaise: 820000, // ₹8,200
-      bonusBalancePaise: 80000,        // ₹800
-      walletBalance: 8200,
-      mainBalance: 9000,
+      withdrawableBalancePaise: 0, // ₹0.00
+      bonusBalancePaise: 0,        // ₹0.00
+      walletBalance: 0,
+      mainBalance: 0,
       currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
       tier: 'Gold',
       joinedDate: 'February 2026',
       level: 6,
@@ -1139,7 +1154,14 @@ class WinoraStateManager {
   public requestWithdrawal(params: {
     playerId: string;
     amountPaise: number;
-    upiId: string;
+    payoutMethod?: 'UPI' | 'BANK';
+    upiId?: string;
+    bankAccount?: {
+      accountNumber: string;
+      ifscCode: string;
+      bankName?: string;
+      accountHolderName: string;
+    };
     accountName: string;
     agentId?: string;
   }): { success: boolean; message: string; request?: WithdrawalRequestRecord } {
@@ -1164,21 +1186,29 @@ class WinoraStateManager {
       };
     }
 
-    const balanceBefore = player.withdrawableBalancePaise;
+    const payoutMethod = params.payoutMethod || (params.bankAccount ? 'BANK' : 'UPI');
 
-    // Atomically reserve (deduct) the requested amount
-    player.withdrawableBalancePaise -= params.amountPaise;
-    player.walletBalance = Math.floor(player.withdrawableBalancePaise / 100);
-    player.mainBalance = Math.floor((player.withdrawableBalancePaise + player.bonusBalancePaise) / 100);
-
+    // NOTE: In accordance with platform rule, coin is deducted only after master confirmation.
     const newReq: WithdrawalRequestRecord = {
       requestId: `WTH-REQ-${Date.now().toString().slice(-6)}`,
       playerId: player.id,
       playerName: player.displayName,
       playerPhone: player.phoneNumber,
       amountPaise: params.amountPaise,
-      upiId: params.upiId.trim(),
-      accountName: params.accountName.trim(),
+      payoutMethod,
+      upiId: params.upiId?.trim() || '',
+      bankAccount: params.bankAccount
+        ? {
+            accountNumber: params.bankAccount.accountNumber.trim(),
+            ifscCode: params.bankAccount.ifscCode.trim().toUpperCase(),
+            bankName: params.bankAccount.bankName?.trim() || 'Direct Bank Transfer',
+            accountHolderName: params.bankAccount.accountHolderName.trim(),
+          }
+        : undefined,
+      accountName:
+        params.accountName.trim() ||
+        params.bankAccount?.accountHolderName.trim() ||
+        player.displayName,
       status: 'PENDING',
       createdAt: new Date().toISOString(),
       agentId: params.agentId,
@@ -1186,26 +1216,28 @@ class WinoraStateManager {
 
     this.withdrawalRequests.unshift(newReq);
 
-    // Record immutable ledger entry
+    // Record immutable ledger entry for pending request
     this.recordLedgerEntry({
       userId: player.id,
       role: 'player',
       transactionType: 'WITHDRAWAL_REQUEST',
       amountPaise: params.amountPaise,
-      balanceBeforePaise: balanceBefore,
+      balanceBeforePaise: player.withdrawableBalancePaise,
       balanceAfterPaise: player.withdrawableBalancePaise,
       bonusBeforePaise: player.bonusBalancePaise,
       bonusAfterPaise: player.bonusBalancePaise,
       referenceId: newReq.requestId,
       actorId: player.id,
       status: 'PENDING',
-      description: `Withdrawal request submitted for ₹${(params.amountPaise / 100).toLocaleString()} to UPI: ${params.upiId}. Reserved from Withdrawable Balance.`,
+      description: `Withdrawal request submitted for ₹${(params.amountPaise / 100).toLocaleString()} via ${
+        payoutMethod === 'BANK' ? `Bank (${newReq.bankAccount?.accountNumber.slice(-4)})` : `UPI (${newReq.upiId})`
+      }. Coins will be deducted upon Master confirmation.`,
     });
 
     this.notify();
     return {
       success: true,
-      message: `Withdrawal request of ₹${(params.amountPaise / 100).toLocaleString()} submitted. Amount held securely pending Master/Agent transfer.`,
+      message: `Withdrawal request of ₹${(params.amountPaise / 100).toLocaleString()} submitted. Coins will be deducted from your wallet once Master verifies and confirms payout.`,
       request: newReq,
     };
   }
@@ -1221,26 +1253,43 @@ class WinoraStateManager {
       return { success: false, message: 'Withdrawal request already processed.' };
     }
 
+    const player = this.players.find((p) => p.id === req.playerId) || this.currentUser;
+
+    // Verify player has sufficient balance before confirmation
+    if (player.withdrawableBalancePaise < req.amountPaise) {
+      return {
+        success: false,
+        message: `Player has insufficient Withdrawable Balance (Available: ₹${(player.withdrawableBalancePaise / 100).toLocaleString()}). Cannot approve withdrawal.`,
+      };
+    }
+
+    const balanceBefore = player.withdrawableBalancePaise;
+
+    // DEDUCT COIN FROM PLAYER AFTER MASTER CONFIRMATION
+    player.withdrawableBalancePaise -= req.amountPaise;
+    player.walletBalance = Math.floor(player.withdrawableBalancePaise / 100);
+    player.mainBalance = Math.floor((player.withdrawableBalancePaise + player.bonusBalancePaise) / 100);
+
     req.status = 'APPROVED';
     req.processedAt = new Date().toISOString();
     req.processorId = processorId;
-    req.payoutReference = payoutReference || `UPI-${Date.now()}`;
-
-    const player = this.players.find((p) => p.id === req.playerId) || this.currentUser;
+    req.payoutReference =
+      payoutReference ||
+      (req.payoutMethod === 'BANK' ? `IMPS-${Date.now().toString().slice(-8)}` : `UPI-${Date.now().toString().slice(-8)}`);
 
     this.recordLedgerEntry({
       userId: player.id,
       role: 'player',
       transactionType: 'WITHDRAWAL_APPROVED',
       amountPaise: req.amountPaise,
-      balanceBeforePaise: player.withdrawableBalancePaise,
+      balanceBeforePaise: balanceBefore,
       balanceAfterPaise: player.withdrawableBalancePaise,
       bonusBeforePaise: player.bonusBalancePaise,
       bonusAfterPaise: player.bonusBalancePaise,
       referenceId: req.requestId,
       actorId: processorId,
       status: 'COMPLETED',
-      description: `Withdrawal of ₹${(req.amountPaise / 100).toLocaleString()} completed by ${processorId}. Payout Ref: ${req.payoutReference}.`,
+      description: `Withdrawal of ₹${(req.amountPaise / 100).toLocaleString()} confirmed by Master (${processorId}). Coins deducted. Payout Ref: ${req.payoutReference}.`,
     });
 
     this.recordAuditLog({
@@ -1248,14 +1297,14 @@ class WinoraStateManager {
       role: processorId.startsWith('agent') ? 'agent' : 'master',
       action: 'WITHDRAWAL_APPROVED',
       targetId: req.requestId,
-      newValue: `Payout Ref: ${req.payoutReference}`,
+      newValue: `Payout Ref: ${req.payoutReference}, Coins Deducted: ₹${req.amountPaise / 100}`,
       device: 'Portal Console',
     });
 
     this.notify();
     return {
       success: true,
-      message: `Withdrawal of ₹${(req.amountPaise / 100).toLocaleString()} marked completed! Payout reference recorded.`,
+      message: `Withdrawal of ₹${(req.amountPaise / 100).toLocaleString()} confirmed! Coins successfully deducted from player's wallet.`,
     };
   }
 
@@ -1271,31 +1320,26 @@ class WinoraStateManager {
     }
 
     const player = this.players.find((p) => p.id === req.playerId) || this.currentUser;
-    const balanceBefore = player.withdrawableBalancePaise;
-
-    // Atomically restore reserved amount back to withdrawable balance
-    player.withdrawableBalancePaise += req.amountPaise;
-    player.walletBalance = Math.floor(player.withdrawableBalancePaise / 100);
-    player.mainBalance = Math.floor((player.withdrawableBalancePaise + player.bonusBalancePaise) / 100);
 
     req.status = 'REJECTED';
     req.processedAt = new Date().toISOString();
     req.processorId = processorId;
     req.rejectionReason = rejectionReason;
 
+    // Coins were NOT deducted at request time, so no refund debit needed
     this.recordLedgerEntry({
       userId: player.id,
       role: 'player',
       transactionType: 'WITHDRAWAL_REJECTED',
       amountPaise: req.amountPaise,
-      balanceBeforePaise: balanceBefore,
+      balanceBeforePaise: player.withdrawableBalancePaise,
       balanceAfterPaise: player.withdrawableBalancePaise,
       bonusBeforePaise: player.bonusBalancePaise,
       bonusAfterPaise: player.bonusBalancePaise,
       referenceId: req.requestId,
       actorId: processorId,
       status: 'REJECTED',
-      description: `Withdrawal rejected: ${rejectionReason}. Reserved funds ₹${(req.amountPaise / 100).toLocaleString()} returned to Withdrawable Balance.`,
+      description: `Withdrawal rejected: ${rejectionReason}. No coins were deducted.`,
     });
 
     this.recordAuditLog({
@@ -1310,7 +1354,7 @@ class WinoraStateManager {
     this.notify();
     return {
       success: true,
-      message: `Withdrawal rejected. Reserved amount of ₹${(req.amountPaise / 100).toLocaleString()} has been atomically returned to player's Withdrawable Balance.`,
+      message: `Withdrawal rejected. No coins were deducted from the player's wallet.`,
     };
   }
 
@@ -1439,6 +1483,16 @@ class WinoraStateManager {
 
     this.notify();
     return newPlayer;
+  }
+
+  public addPlayerDemoCredits(amountRupees: number = 1000): void {
+    const paise = Math.round(amountRupees * 100);
+    this.currentUser.withdrawableBalancePaise += paise;
+    this.currentUser.walletBalance = Math.floor(this.currentUser.withdrawableBalancePaise / 100);
+    this.currentUser.mainBalance = Math.floor(
+      (this.currentUser.withdrawableBalancePaise + this.currentUser.bonusBalancePaise) / 100
+    );
+    this.notify();
   }
 
   // ---------------------------------------------------------------------------

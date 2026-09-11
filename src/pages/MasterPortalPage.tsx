@@ -24,6 +24,9 @@ import {
   SlidersHorizontal,
   X,
   Check,
+  QrCode,
+  Building2,
+  Smartphone,
 } from 'lucide-react';
 import {
   UserProfile,
@@ -74,6 +77,7 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({ onToast, onO
 
   // Settings Edit State
   const [editPaymentUrl, setEditPaymentUrl] = useState(paymentSettings.paymentUrl);
+  const [editQrCodeUrl, setEditQrCodeUrl] = useState(paymentSettings.qrCodeUrl || '');
   const [editUpiId, setEditUpiId] = useState(paymentSettings.upiId);
   const [editAccountName, setEditAccountName] = useState(paymentSettings.accountHolderName);
   const [editInstructions, setEditInstructions] = useState(paymentSettings.instructions);
@@ -85,10 +89,12 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({ onToast, onO
 
   // Re-fetch calculations and engine subscriptions
   const refreshAll = () => {
+    const currentSettings = winoraEngine.getMasterPaymentSettings();
     setPnlData(winoraEngine.calculateNumberWisePnL(selectedGameId));
     setDepositRequests(winoraEngine.getDepositRequests());
     setWithdrawalRequests(winoraEngine.getWithdrawalRequests());
-    setPaymentSettings(winoraEngine.getMasterPaymentSettings());
+    setPaymentSettings(currentSettings);
+    setEditQrCodeUrl(currentSettings.qrCodeUrl || '');
     setDashboardStats(winoraEngine.getMasterDashboardStats());
     setAuditLogs(winoraEngine.getAuditLogs());
     setPlayers([...winoraEngine.getPlayers()]);
@@ -132,18 +138,26 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({ onToast, onO
     refreshAll();
   };
 
-  // Withdrawal Approval
+  // Withdrawal Approval (Coins will be deducted from player after confirmation)
   const handleApproveWithdrawal = (requestId: string) => {
-    const payoutRef = prompt('Enter Bank IMPS / UPI payout reference number:', `IMPS-${Date.now().toString().slice(-8)}`);
+    const req = withdrawalRequests.find((r) => r.requestId === requestId);
+    const methodText = req?.payoutMethod === 'BANK' ? 'Bank Account' : 'UPI';
+    const confirmApproval = window.confirm(
+      `Confirm payout and deduct ₹${req ? (req.amountPaise / 100).toLocaleString() : ''} coins from ${req?.playerName}'s wallet?\n` +
+      `Payout method: ${methodText}. Coins will be permanently deducted upon your confirmation.`
+    );
+    if (!confirmApproval) return;
+
+    const payoutRef = prompt('Enter Bank IMPS / UPI payout transaction reference number:', `IMPS-${Date.now().toString().slice(-8)}`);
     if (!payoutRef) return;
     const res = winoraEngine.approveWithdrawal(requestId, 'master-admin', payoutRef);
     onToast(res.message);
     refreshAll();
   };
 
-  // Withdrawal Rejection
+  // Withdrawal Rejection (No coins were deducted from player)
   const handleRejectWithdrawal = (requestId: string) => {
-    const reason = prompt('Enter reason for rejecting withdrawal (funds will be refunded to player):');
+    const reason = prompt('Enter reason for rejecting withdrawal:');
     if (!reason) return;
     const res = winoraEngine.rejectWithdrawal(requestId, 'master-admin', reason);
     onToast(res.message);
@@ -156,6 +170,7 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({ onToast, onO
     const res = winoraEngine.updateMasterPaymentSettings({
       enabled: editEnabled,
       paymentUrl: editPaymentUrl,
+      qrCodeUrl: editQrCodeUrl,
       upiId: editUpiId,
       accountHolderName: editAccountName,
       instructions: editInstructions,
@@ -607,7 +622,7 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({ onToast, onO
           <div className="divide-y divide-zinc-800">
             {withdrawalRequests.map((req) => (
               <div key={req.requestId} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="space-y-1">
+                <div className="space-y-1.5 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-zinc-100 text-sm">{req.playerName}</span>
                     <span className="text-xs text-zinc-400 font-mono">{req.playerPhone}</span>
@@ -622,15 +637,53 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({ onToast, onO
                     >
                       {req.status}
                     </span>
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 flex items-center gap-1">
+                      {req.payoutMethod === 'BANK' || req.bankAccount ? (
+                        <>
+                          <Building2 className="w-3 h-3 text-cyan-400" />
+                          <span>Bank Account</span>
+                        </>
+                      ) : (
+                        <>
+                          <Smartphone className="w-3 h-3 text-amber-400" />
+                          <span>UPI</span>
+                        </>
+                      )}
+                    </span>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400">
-                    <span>
-                      UPI ID: <strong className="text-amber-400 font-mono">{req.upiId}</strong>
-                    </span>
-                    <span>•</span>
-                    <span>Beneficiary: {req.accountName}</span>
-                    <span>•</span>
+                  {/* Payout Details */}
+                  {req.payoutMethod === 'BANK' || req.bankAccount ? (
+                    <div className="bg-zinc-950/80 p-2.5 rounded-xl border border-zinc-800 text-xs space-y-1 font-mono">
+                      <div className="flex flex-wrap items-center gap-3 text-zinc-350">
+                        <span>
+                          Bank: <strong className="text-zinc-100">{req.bankAccount?.bankName || 'Direct Transfer'}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          A/C No: <strong className="text-cyan-300 tracking-wider font-bold">{req.bankAccount?.accountNumber}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          IFSC: <strong className="text-amber-400 font-bold">{req.bankAccount?.ifscCode}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Holder: <strong className="text-zinc-100">{req.bankAccount?.accountHolderName || req.accountName}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-zinc-950/80 p-2.5 rounded-xl border border-zinc-800 text-xs flex flex-wrap items-center gap-3 font-mono">
+                      <span>
+                        UPI ID: <strong className="text-amber-400 font-bold">{req.upiId}</strong>
+                      </span>
+                      <span>•</span>
+                      <span>Beneficiary: <strong className="text-zinc-100">{req.accountName}</strong></span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3 text-[11px] text-zinc-500">
                     <span>Requested: {new Date(req.createdAt).toLocaleString()}</span>
                     {req.payoutReference && (
                       <>
@@ -647,26 +700,33 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({ onToast, onO
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-base font-black text-zinc-100 block">
-                    {formatPaise(req.amountPaise)}
-                  </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <div className="text-right">
+                    <span className="font-mono text-base font-black text-zinc-100 block">
+                      {formatPaise(req.amountPaise)}
+                    </span>
+                    <span className="text-[10px] text-zinc-500 font-semibold block">
+                      {Math.floor(req.amountPaise / 100).toLocaleString()} Coins
+                    </span>
+                  </div>
 
                   {req.status === 'PENDING' && (
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleApproveWithdrawal(req.requestId)}
-                        className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs flex items-center gap-1 cursor-pointer shadow"
+                        title="Confirm bank/UPI payout and permanently deduct coins from player wallet"
+                        className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs flex items-center gap-1 cursor-pointer shadow transition-all"
                       >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Mark Paid</span>
+                        <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>Confirm & Deduct Coins</span>
                       </button>
                       <button
                         onClick={() => handleRejectWithdrawal(req.requestId)}
-                        className="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                        title="Reject withdrawal request. No coins were deducted."
+                        className="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 font-bold text-xs flex items-center gap-1 cursor-pointer transition-all"
                       >
-                        <X className="w-3.5 h-3.5" />
-                        <span>Reject & Refund</span>
+                        <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                        <span>Reject</span>
                       </button>
                     </div>
                   )}
@@ -686,10 +746,10 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({ onToast, onO
             <div>
               <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
                 <Settings className="w-4 h-4 text-amber-400" />
-                <span>Master Payment Link & Limits Configuration</span>
+                <span>Master Deposit QR, Payment Link & Limits Configuration</span>
               </h3>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Master sets the official UPI ID, payment link, and deposit/withdrawal limits visible to all players.
+                Master sets the official deposit QR code, payment link, UPI ID, and deposit/withdrawal limits.
               </p>
             </div>
 
@@ -700,7 +760,7 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({ onToast, onO
                 onChange={(e) => setEditEnabled(e.target.checked)}
                 className="rounded border-zinc-700 text-amber-500 focus:ring-0"
               />
-              <span>Deposit Link Active</span>
+              <span>Deposit System Active</span>
             </label>
           </div>
 
@@ -711,34 +771,64 @@ export const MasterPortalPage: React.FC<MasterPortalPageProps> = ({ onToast, onO
                 type="text"
                 value={editUpiId}
                 onChange={(e) => setEditUpiId(e.target.value)}
+                placeholder="e.g. winora.gaming@icici"
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 text-sm font-mono focus:border-amber-500 focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1">Account Holder Name</label>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">Account Holder / Beneficiary Name</label>
               <input
                 type="text"
                 value={editAccountName}
                 onChange={(e) => setEditAccountName(e.target.value)}
+                placeholder="WINORA ENTERTAINMENT PVT LTD"
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 text-sm focus:border-amber-500 focus:outline-none"
               />
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-zinc-300 mb-1">Payment URL / Gateway Link</label>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1 flex items-center justify-between">
+                <span>Official Payment URL / Direct Link</span>
+                <span className="text-[11px] text-zinc-500">Visible to players on Deposit page</span>
+              </label>
               <input
                 type="text"
                 value={editPaymentUrl}
                 onChange={(e) => setEditPaymentUrl(e.target.value)}
+                placeholder="https://pay.winora.vip/instant-upi"
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
               />
             </div>
 
             <div className="md:col-span-2">
+              <label className="block text-xs font-semibold text-zinc-300 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <QrCode className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Master QR Code Image URL</span>
+                </span>
+                <span className="text-[11px] text-zinc-500">Direct image URL for scanning</span>
+              </label>
+              <div className="flex gap-3 items-center">
+                <input
+                  type="text"
+                  value={editQrCodeUrl}
+                  onChange={(e) => setEditQrCodeUrl(e.target.value)}
+                  placeholder="https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=..."
+                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-zinc-100 text-xs font-mono focus:border-amber-500 focus:outline-none"
+                />
+                {editQrCodeUrl && (
+                  <div className="w-11 h-11 rounded-lg bg-white p-1 shrink-0 border border-zinc-700 flex items-center justify-center overflow-hidden">
+                    <img src={editQrCodeUrl} alt="QR Preview" className="w-full h-full object-contain" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
               <label className="block text-xs font-semibold text-zinc-300 mb-1">Player Deposit Instructions</label>
               <textarea
-                rows={4}
+                rows={3}
                 value={editInstructions}
                 onChange={(e) => setEditInstructions(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 text-zinc-100 text-xs focus:border-amber-500 focus:outline-none"
