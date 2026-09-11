@@ -18,31 +18,35 @@ export interface AuthResult<T = User> {
   error?: string;
 }
 
-// Keep exactly one verifier for the dedicated login container.
+// Keep exactly one verifier for the login flow.
 let activeVerifier: RecaptchaVerifier | null = null;
 let activeContainerId: string | null = null;
+let activeContainerIsDedicatedElement = false;
 
 /**
- * Resets and cleans up any currently active reCAPTCHA verifier widget.
- * The container is also emptied because Firebase may leave the rendered iframe
- * in the DOM after verifier.clear(). This prevents the next verifier from
- * trying to render into an already-used element.
+ * Resets and cleans up the currently active reCAPTCHA verifier.
+ *
+ * For invisible reCAPTCHA Firebase recommends using the submit button itself
+ * as the verifier container. That button must NOT be emptied because React
+ * owns its children. Dedicated reCAPTCHA containers can safely be emptied.
  */
 export function clearRecaptchaVerifier(): void {
   const containerId = activeContainerId;
+  const shouldClearDom = activeContainerIsDedicatedElement;
 
   if (activeVerifier) {
     try {
       activeVerifier.clear();
     } catch {
-      // Ignore cleanup errors; DOM cleanup is still attempted.
+      // Ignore cleanup errors; the verifier reference is still discarded.
     }
   }
 
   activeVerifier = null;
   activeContainerId = null;
+  activeContainerIsDedicatedElement = false;
 
-  if (containerId) {
+  if (shouldClearDom && containerId) {
     const containerElement = document.getElementById(containerId);
     if (containerElement) {
       containerElement.innerHTML = '';
@@ -52,8 +56,9 @@ export function clearRecaptchaVerifier(): void {
 
 /**
  * Initializes or returns the existing RecaptchaVerifier for the specified
- * dedicated container. Stale verifier/container state is fully cleaned before
- * a new verifier is constructed.
+ * login flow. Invisible Firebase reCAPTCHA is attached to the submit button,
+ * which avoids rendering into a separate React-managed div that can become
+ * stale across SPA remounts.
  */
 export function getOrCreateRecaptchaVerifier(
   containerId: string = 'recaptcha-container',
@@ -62,42 +67,49 @@ export function getOrCreateRecaptchaVerifier(
   const auth = getFirebaseAuth();
   if (!auth) return null;
 
-  const containerElement = document.getElementById(containerId);
+  // Firebase's documented invisible-reCAPTCHA pattern uses the submit button
+  // as the container. Keep the existing caller API unchanged.
+  const isLoginFlow = containerId === 'login-recaptcha-container' && size === 'invisible';
+  const effectiveContainerId = isLoginFlow ? 'login-send-otp-btn' : containerId;
+  const dedicatedElement = !isLoginFlow;
+
+  const containerElement = document.getElementById(effectiveContainerId);
   if (!containerElement) {
     return null;
   }
 
-  // Reuse only when the active verifier belongs to this exact container.
-  if (activeVerifier && activeContainerId === containerId) {
+  // Reuse only when the active verifier belongs to this exact element.
+  if (activeVerifier && activeContainerId === effectiveContainerId) {
     return activeVerifier;
   }
 
-  // A verifier for another container is stale for this login flow.
   if (activeVerifier || activeContainerId) {
     clearRecaptchaVerifier();
   }
 
-  // This element is dedicated to reCAPTCHA. Remove any stale widget/iframe
-  // left behind by a previous verifier before constructing a new one.
-  if (containerElement.childNodes.length > 0) {
+  // Dedicated visible containers must be empty before construction. The
+  // invisible login verifier is attached to the button and must not be emptied.
+  if (dedicatedElement && containerElement.childNodes.length > 0) {
     containerElement.innerHTML = '';
   }
 
   try {
-    activeVerifier = new RecaptchaVerifier(auth, containerId, {
+    activeVerifier = new RecaptchaVerifier(auth, effectiveContainerId, {
       size,
       callback: () => {
-        // reCAPTCHA solved
+        // reCAPTCHA solved; signInWithPhoneNumber continues the flow.
       },
       'expired-callback': () => {
         console.warn('[WINORA] reCAPTCHA session expired.');
       },
     });
-    activeContainerId = containerId;
+    activeContainerId = effectiveContainerId;
+    activeContainerIsDedicatedElement = dedicatedElement;
     return activeVerifier;
   } catch (err) {
     activeVerifier = null;
     activeContainerId = null;
+    activeContainerIsDedicatedElement = false;
     console.error('[WINORA] Failed to initialize RecaptchaVerifier:', err);
     return null;
   }
