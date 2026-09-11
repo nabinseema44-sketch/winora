@@ -18,25 +18,42 @@ export interface AuthResult<T = User> {
   error?: string;
 }
 
-// Global active verifier instance to prevent duplicate reCAPTCHA render conflicts
+// Keep exactly one verifier for the dedicated login container.
 let activeVerifier: RecaptchaVerifier | null = null;
+let activeContainerId: string | null = null;
 
 /**
  * Resets and cleans up any currently active reCAPTCHA verifier widget.
+ * The container is also emptied because Firebase may leave the rendered iframe
+ * in the DOM after verifier.clear(). This prevents the next verifier from
+ * trying to render into an already-used element.
  */
 export function clearRecaptchaVerifier(): void {
+  const containerId = activeContainerId;
+
   if (activeVerifier) {
     try {
       activeVerifier.clear();
     } catch {
-      // Ignore cleanup error if already unmounted
+      // Ignore cleanup errors; DOM cleanup is still attempted.
     }
-    activeVerifier = null;
+  }
+
+  activeVerifier = null;
+  activeContainerId = null;
+
+  if (containerId) {
+    const containerElement = document.getElementById(containerId);
+    if (containerElement) {
+      containerElement.innerHTML = '';
+    }
   }
 }
 
 /**
- * Initializes or returns an existing RecaptchaVerifier bound to the specified container.
+ * Initializes or returns the existing RecaptchaVerifier for the specified
+ * dedicated container. Stale verifier/container state is fully cleaned before
+ * a new verifier is constructed.
  */
 export function getOrCreateRecaptchaVerifier(
   containerId: string = 'recaptcha-container',
@@ -45,13 +62,25 @@ export function getOrCreateRecaptchaVerifier(
   const auth = getFirebaseAuth();
   if (!auth) return null;
 
-  if (activeVerifier) {
-    return activeVerifier;
-  }
-
   const containerElement = document.getElementById(containerId);
   if (!containerElement) {
     return null;
+  }
+
+  // Reuse only when the active verifier belongs to this exact container.
+  if (activeVerifier && activeContainerId === containerId) {
+    return activeVerifier;
+  }
+
+  // A verifier for another container is stale for this login flow.
+  if (activeVerifier || activeContainerId) {
+    clearRecaptchaVerifier();
+  }
+
+  // This element is dedicated to reCAPTCHA. Remove any stale widget/iframe
+  // left behind by a previous verifier before constructing a new one.
+  if (containerElement.childNodes.length > 0) {
+    containerElement.innerHTML = '';
   }
 
   try {
@@ -64,8 +93,11 @@ export function getOrCreateRecaptchaVerifier(
         console.warn('[WINORA] reCAPTCHA session expired.');
       },
     });
+    activeContainerId = containerId;
     return activeVerifier;
   } catch (err) {
+    activeVerifier = null;
+    activeContainerId = null;
     console.error('[WINORA] Failed to initialize RecaptchaVerifier:', err);
     return null;
   }
