@@ -2,11 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar.tsx';
 import { BottomNav } from './components/BottomNav.tsx';
 import { GamePreviewModal } from './components/GamePreviewModal.tsx';
-import { DualConfirmationHandshakeModal } from './components/DualConfirmationHandshakeModal.tsx';
 import { SqlSchemaModal } from './components/SqlSchemaModal.tsx';
 import { Logo } from './components/Logo.tsx';
 import { CoinWalletPanel } from './components/CoinWalletPanel.tsx';
-
 import { HomePage } from './pages/HomePage.tsx';
 import { GamesPage } from './pages/GamesPage.tsx';
 import { ProfilePage } from './pages/ProfilePage.tsx';
@@ -15,47 +13,101 @@ import { RegisterPage } from './pages/RegisterPage.tsx';
 import { HistoryPage } from './pages/HistoryPage.tsx';
 import { AgentPortalPage } from './pages/AgentPortalPage.tsx';
 import { MasterPortalPage } from './pages/MasterPortalPage.tsx';
-
-import { MOCK_GAMES } from './data/mockData.ts';
 import { GameItem, NavPage, UserProfile, WinoraGameConfig } from './types.ts';
 import { CheckCircle2, Shield } from 'lucide-react';
 import { onAuthChange, logoutUser } from './firebase/authService.ts';
 import { getUserProfile } from './firebase/firestoreService.ts';
-import { winoraEngine } from './services/winoraEngine.ts';
+import { gameEntryApi } from './services/gameEntryApi.ts';
 import { GameBoardModal } from './components/GameBoardModal.tsx';
+
+const EMPTY_USER: UserProfile = {
+  id: '',
+  displayName: 'WINORA Player',
+  phoneNumber: '',
+  withdrawableBalancePaise: 0,
+  bonusBalancePaise: 0,
+  walletBalance: 0,
+  mainBalance: 0,
+  currency: { code: 'COIN', symbol: '', name: 'Virtual Coins' },
+  tier: 'Bronze',
+  joinedDate: '',
+  level: 1,
+  role: 'player',
+  status: 'active',
+  stats: {
+    gamesPlayed: 0,
+    highestVirtualWin: 0,
+    favoriteCategory: 'Hourly Play',
+    winRate: '0%',
+  },
+};
+
+function mapBackendGame(game: any): GameItem {
+  return {
+    id: String(game.id),
+    title: String(game.name || 'WINORA Game'),
+    category: 'arcade',
+    icon: game.id === 'hourly_play' ? 'Clock' : 'Grid',
+    accentColor: String(game.accentColor || 'from-zinc-800 to-zinc-900 text-zinc-200 border-zinc-700'),
+    description: String(game.description || game.subtitle || 'Server-authoritative virtual coin game.'),
+    minVirtualBet: 1,
+    maxVirtualBet: 0,
+    playersOnline: 0,
+    isHot: game.id === 'hourly_play',
+    status: 'active',
+  };
+}
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<NavPage>('home');
-  const [user, setUser] = useState<UserProfile>(winoraEngine.getCurrentUser());
-  const [games] = useState<GameItem[]>(MOCK_GAMES);
+  const [user, setUser] = useState<UserProfile>(EMPTY_USER);
+  const [games, setGames] = useState<GameItem[]>([]);
+  const [backendGames, setBackendGames] = useState<WinoraGameConfig[]>([]);
   const [selectedGame, setSelectedGame] = useState<GameItem | null>(null);
   const [activeBiddingGame, setActiveBiddingGame] = useState<WinoraGameConfig | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showSqlModal, setShowSqlModal] = useState(false);
 
   useEffect(() => {
-    const unsub = winoraEngine.subscribe(() => setUser({ ...winoraEngine.getCurrentUser() }));
-    return () => unsub();
+    let mounted = true;
+    const loadGames = async () => {
+      const config = await gameEntryApi.fetchGamesConfig();
+      if (!mounted || !config?.games) return;
+      const serverGames = config.games as WinoraGameConfig[];
+      setBackendGames(serverGames);
+      setGames(serverGames.map(mapBackendGame));
+    };
+    loadGames();
+    const interval = setInterval(loadGames, 30000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthChange(async (firebaseUser) => {
-      if (!firebaseUser) return;
+      if (!firebaseUser) {
+        setUser(EMPTY_USER);
+        return;
+      }
       try {
         const profile = await getUserProfile(firebaseUser.uid);
         const verifiedPhone = firebaseUser.phoneNumber || profile?.phoneNumber || '';
         const defaultName = verifiedPhone.length >= 4 ? `Player ••${verifiedPhone.slice(-4)}` : 'WINORA Player';
-        if (profile) {
-          setUser((prev) => ({
-            ...prev,
-            id: profile.uid,
-            displayName: profile.displayName || firebaseUser.displayName || defaultName,
-            phoneNumber: profile.phoneNumber || verifiedPhone,
-            tier: profile.tier || 'Bronze',
-            role: profile.role || 'player',
-            status: profile.status || 'active',
-          }));
-        }
+        setUser((prev) => ({
+          ...prev,
+          id: firebaseUser.uid,
+          displayName: profile?.displayName || firebaseUser.displayName || defaultName,
+          phoneNumber: profile?.phoneNumber || verifiedPhone,
+          tier: profile?.tier || 'Bronze',
+          role: profile?.role === 'agent' || profile?.role === 'master' ? profile.role : 'player',
+          status: profile?.status || 'active',
+          pincode: profile?.pincode,
+          assignedAgentId: profile?.assignedAgentId,
+          referralCode: profile?.referralCode,
+          referredByUserId: profile?.referredByUserId,
+        }));
       } catch (err) {
         console.error('[WINORA] Firestore profile fetch error:', err);
       }
@@ -69,7 +121,6 @@ export default function App() {
   };
 
   const handleNavigate = (page: NavPage) => {
-    // Deposit is now a Master/Agent coin transfer workflow, not a payment gateway.
     if (page === 'deposit') {
       setCurrentPage('wallet');
       return;
@@ -80,25 +131,23 @@ export default function App() {
 
   const handleLogout = async () => {
     await logoutUser();
-    winoraEngine.switchUserRole('player');
-    setUser({ ...winoraEngine.getCurrentUser() });
+    setUser(EMPTY_USER);
     setCurrentPage('login');
     showToast('Signed out of WINORA session.');
   };
 
-  const handleRoleSwitch = (newRole: 'player' | 'agent' | 'master') => {
-    // UI-only persona switch. Server-side coin APIs always derive the real role from Firebase.
-    winoraEngine.switchUserRole(newRole);
-    setUser({ ...winoraEngine.getCurrentUser() });
-    if (newRole === 'master') setCurrentPage('master');
-    else if (newRole === 'agent') setCurrentPage('agent');
-    else setCurrentPage('games');
-    showToast(`Opened ${newRole.toUpperCase()} workspace. Server permissions still apply.`);
+  const handleRoleSwitch = (_newRole: 'player' | 'agent' | 'master') => {
+    showToast('Workspace access is controlled by your verified Firebase role.');
   };
 
   const handleUpdateProfile = (updatedData: { displayName: string }) => {
     setUser((prev) => ({ ...prev, ...updatedData }));
     showToast('Profile updated successfully!');
+  };
+
+  const openBackendGame = (gameId: string) => {
+    const game = backendGames.find((item) => item.id === gameId);
+    if (game) setActiveBiddingGame(game);
   };
 
   return (
@@ -127,7 +176,7 @@ export default function App() {
             user={user}
             onNavigate={handleNavigate}
             onSelectGame={(game) => setSelectedGame(game)}
-            onOpenWinoraGame={(gameConfig) => setActiveBiddingGame(gameConfig)}
+            onOpenWinoraGame={(gameConfig) => openBackendGame(gameConfig.id)}
           />
         )}
         {currentPage === 'games' && <GamesPage user={user} onToast={showToast} />}
@@ -143,25 +192,25 @@ export default function App() {
 
       <footer className="border-t border-zinc-900 bg-zinc-950 py-4 px-3 text-[11px] text-zinc-500 mb-16 select-none">
         <div className="max-w-md mx-auto flex flex-col items-center justify-center gap-2 text-center">
-          <div className="flex items-center gap-2"><Logo size="sm" /><span className="text-[10px] text-zinc-500">Virtual Coin Wallet • 90× Game Matrix</span></div>
-          <div className="flex items-center gap-1.5 text-[10px] text-zinc-400"><Shield className="w-3 h-3 text-emerald-400" /><span>Server-Authoritative Ledger • IST Schedule</span></div>
+          <div className="flex items-center gap-2"><Logo size="sm" /><span className="text-[10px] text-zinc-500">Virtual Coins • Server Game Matrix</span></div>
+          <div className="flex items-center gap-1.5 text-[10px] text-zinc-400"><Shield className="w-3 h-3 text-emerald-400" /><span>Firebase Auth • Server-Authoritative Ledger • IST Schedule</span></div>
           <button onClick={() => setShowSqlModal(true)} className="text-[10px] text-zinc-500 hover:text-amber-400 underline cursor-pointer py-1">View Database Schema</button>
         </div>
       </footer>
 
       <BottomNav currentPage={currentPage} onNavigate={handleNavigate} user={user} />
       <GamePreviewModal game={selectedGame} onClose={() => setSelectedGame(null)} />
-      {activeBiddingGame && (
+      {activeBiddingGame && user.id && (
         <GameBoardModal
           game={activeBiddingGame}
-          initialRound={winoraEngine.getRounds()[activeBiddingGame.id] || {
-            id: `round-${activeBiddingGame.id}-1`,
+          initialRound={{
+            id: `backend-${activeBiddingGame.id}`,
             gameId: activeBiddingGame.id,
             gameName: activeBiddingGame.name,
-            roundNumber: 101,
+            roundNumber: 0,
             openTime: new Date().toISOString(),
-            freezeTime: new Date(Date.now() + 15 * 60000).toISOString(),
-            declareTime: new Date(Date.now() + 30 * 60000).toISOString(),
+            freezeTime: new Date().toISOString(),
+            declareTime: new Date().toISOString(),
             status: 'open',
             totalBidsPool: 0,
           }}
