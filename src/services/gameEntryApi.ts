@@ -1,12 +1,9 @@
 import { getFirebaseAuth } from '../firebase/config.ts';
 
 /**
- * WINORA Step 13 Game Entry API Service
- * Handles server-authoritative round configuration,
- * per-selection stakes & chosen colors, idempotent entry submission,
- * and entry history retrieval.
+ * WINORA server-authoritative game API client.
+ * No demo/dev identity is ever fabricated by the client.
  */
-
 export interface ServerRoundInfo {
   id: string;
   gameId: string;
@@ -28,8 +25,8 @@ export interface GamesConfigResponse {
 }
 
 export interface SelectionPayload {
-  number: string; // '00' to '99'
-  stake: number;  // per-number stake
+  number: string;
+  stake: number;
   color: 'GREEN' | 'RED';
 }
 
@@ -44,7 +41,7 @@ export interface SubmitGameEntryPayload {
 }
 
 export interface ConfirmedGameEntry {
-  id: string; // 'ENTRY-XXXXXXXX'
+  id: string;
   userId: string;
   gameId: string;
   gameName: string;
@@ -75,42 +72,38 @@ export interface SubmitEntryResponse {
   remainingBalance?: { main: number; bonus?: number };
 }
 
-async function getAuthHeaders(userId?: string): Promise<Record<string, string>> {
+async function getAuthHeaders(): Promise<Record<string, string>> {
   const user = getFirebaseAuth()?.currentUser;
-  if (user) {
-    try {
-      const token = await user.getIdToken();
-      return { Authorization: `Bearer ${token}` };
-    } catch {}
+  if (!user) {
+    throw new Error('AUTH_REQUIRED');
   }
-  return { Authorization: `Bearer dev_${userId || 'player-arjun'}` };
+
+  const token = await user.getIdToken();
+  if (!token) {
+    throw new Error('AUTH_REQUIRED');
+  }
+
+  return { Authorization: `Bearer ${token}` };
 }
 
 export const gameEntryApi = {
-  /**
-   * Fetch server-authoritative round statuses
-   */
   async fetchGamesConfig(): Promise<GamesConfigResponse | null> {
     try {
-      const res = await fetch('/api/games/config');
+      const res = await fetch('/api/games/config', { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch game configuration');
       return await res.json();
     } catch (err) {
-      console.warn('[WINORA] Game config fetch fallback to local:', err);
+      console.warn('[WINORA] Game config fetch failed:', err);
       return null;
     }
   },
 
-  /**
-   * Fetch user entries from server
-   */
-  async fetchMyEntries(userId: string): Promise<ConfirmedGameEntry[]> {
+  async fetchMyEntries(_userId?: string): Promise<ConfirmedGameEntry[]> {
     try {
-      const authHeaders = await getAuthHeaders(userId);
-      const res = await fetch(`/api/game-entry/my-entries`, {
-        headers: {
-          ...authHeaders,
-        },
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch('/api/game-entry/my-entries', {
+        headers: authHeaders,
+        cache: 'no-store',
       });
       if (!res.ok) throw new Error('Failed to fetch entries');
       const data = await res.json();
@@ -121,17 +114,12 @@ export const gameEntryApi = {
     }
   },
 
-  /**
-   * Submit secure game entry to Step 13 API
-   * Client sends selections array: [{ number, stake, color }].
-   * Server calculates authoritative totalStake and verifies dual-wallet balances.
-   */
   async submitEntry(
-    userId: string,
+    _userId: string,
     payload: SubmitGameEntryPayload
   ): Promise<SubmitEntryResponse> {
     try {
-      const authHeaders = await getAuthHeaders(userId);
+      const authHeaders = await getAuthHeaders();
       const res = await fetch('/api/game-entry/submit', {
         method: 'POST',
         headers: {
@@ -152,16 +140,19 @@ export const gameEntryApi = {
     } catch (err: any) {
       return {
         success: false,
-        errorCode: 'NETWORK_ERROR',
-        message: 'Network connection failed. Please check your connectivity and try again.',
+        errorCode: err?.message === 'AUTH_REQUIRED' ? 'AUTH_REQUIRED' : 'NETWORK_ERROR',
+        message:
+          err?.message === 'AUTH_REQUIRED'
+            ? 'Please sign in before placing a bid.'
+            : 'Network connection failed. Please check your connectivity and try again.',
       };
     }
   },
 
-  /**
-   * Generate robust idempotency key for new submissions
-   */
   generateIdempotencyKey(): string {
-    return 'idemp_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 10);
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return `idemp_${crypto.randomUUID()}`;
+    }
+    return `idemp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   },
 };
