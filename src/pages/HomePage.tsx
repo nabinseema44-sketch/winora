@@ -118,6 +118,41 @@ export const HomePage: React.FC<HomePageProps> = ({
                 HOURLY PLAY <span className="text-amber-400">DHAMAKA</span>
               </h1>
 
+              {/* MOBILE HIGHLIGHTED PLAY BUTTON ON TOP (Priority #1 CTA for Mobile Players) */}
+              <div className="block lg:hidden pt-1 pb-0.5">
+                <button
+                  id="play-hourly-game-mobile-top-btn"
+                  type="button"
+                  onClick={() => handlePlayGame(hourlyGameConfig)}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-zinc-950 font-black text-sm uppercase tracking-wider flex items-center justify-between shadow-xl shadow-amber-500/30 ring-2 ring-amber-300 active:scale-[0.98] transition-all cursor-pointer animate-pulse"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-zinc-950 text-amber-400 flex items-center justify-center shadow-md shrink-0">
+                      <Play className="w-5 h-5 fill-current ml-0.5" />
+                    </div>
+                    <div className="text-left">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-black leading-tight text-zinc-950">
+                          PLAY HOURLY GAME NOW
+                        </span>
+                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-zinc-950 text-amber-300 font-mono">
+                          90× WIN
+                        </span>
+                      </div>
+                      <span className="block text-[11px] font-bold text-zinc-900 mt-0.5">
+                        {hourlyRound.isFrozen
+                          ? '⛔ Bidding Frozen • Tap to View Draw Grid'
+                          : '🟢 Round Open • Tap to Select 00–99 Numbers'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 bg-zinc-950/20 px-2.5 py-1.5 rounded-xl border border-zinc-950/25 font-mono text-xs font-black text-zinc-950 shrink-0">
+                    <span>PLAY</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </div>
+                </button>
+              </div>
+
               {/* Status and Countdown Box */}
               <div className="bg-zinc-950/80 border border-zinc-800 rounded-2xl p-4 space-y-2">
                 <div className="flex items-center justify-between text-xs">
@@ -214,7 +249,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 id="play-hourly-game-top-btn"
                 type="button"
                 onClick={() => handlePlayGame(hourlyGameConfig)}
-                className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-zinc-950 font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 active:scale-98 transition-all cursor-pointer"
+                className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-zinc-950 font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-xl shadow-amber-500/25 ring-2 ring-amber-300/60 active:scale-98 transition-all cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>Play Hourly Game Now</span>
