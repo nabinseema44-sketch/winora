@@ -1,6 +1,7 @@
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebaseAdmin.ts';
 import type { ServerRole } from './authMiddleware.ts';
+import { authoritativeBackendStore } from './authoritativeBackendStore.ts';
 
 export type CoinTransferType =
   | 'MASTER_TO_AGENT'
@@ -13,6 +14,7 @@ export type CoinLedgerType =
   | 'GAME_STAKE'
   | 'GAME_WIN'
   | 'HOURLY_PROTECTION'
+  | 'HOURLY_PROTECTION_REFUND'
   | 'DAILY_CLAIM'
   | 'ACHIEVEMENT_REWARD'
   | 'REFERRAL_REWARD'
@@ -52,11 +54,15 @@ const userRef = (uid: string) => getAdminDb().collection('users').doc(uid);
 const adminRef = (uid: string) => getAdminDb().collection('admins').doc(uid);
 
 export async function getRole(uid: string): Promise<ServerRole> {
-  const db = getAdminDb();
-  const admin = await adminRef(uid).get();
-  if (admin.exists) return admin.data()?.role === 'agent' ? 'agent' : 'master';
-  const user = await userRef(uid).get();
-  return user.data()?.role === 'agent' ? 'agent' : 'player';
+  try {
+    const db = getAdminDb();
+    const admin = await adminRef(uid).get();
+    if (admin.exists) return admin.data()?.role === 'agent' ? 'agent' : 'master';
+    const user = await userRef(uid).get();
+    return user.data()?.role === 'agent' ? 'agent' : 'player';
+  } catch {
+    return 'player';
+  }
 }
 
 function assertAmount(amount: number) {
@@ -86,14 +92,47 @@ async function ensureWallet(tx: FirebaseFirestore.Transaction, uid: string) {
 }
 
 export async function getWallet(uid: string): Promise<CoinWallet> {
-  const snap = await walletRef(uid).get();
-  if (!snap.exists) return { uid, balance: 0, bonusBalance: 0, currency: 'COIN' };
-  return { uid, ...(snap.data() as Omit<CoinWallet, 'uid'>) };
+  try {
+    const snap = await walletRef(uid).get();
+    if (snap.exists) return { uid, ...(snap.data() as Omit<CoinWallet, 'uid'>) };
+  } catch {
+    // Fallback to Authoritative Store
+  }
+  const storeWallet = authoritativeBackendStore.getWalletSync(uid);
+  return {
+    uid,
+    balance: storeWallet.balance,
+    bonusBalance: storeWallet.bonusBalance,
+    currency: 'COIN',
+  };
 }
 
 export async function getLedger(uid: string, limit = 50) {
-  const snap = await ledgerRef().where('userId', '==', uid).orderBy('createdAt', 'desc').limit(Math.min(limit, 100)).get();
-  return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<CoinLedgerEntry, 'id'>) }));
+  try {
+    const snap = await ledgerRef().where('userId', '==', uid).orderBy('createdAt', 'desc').limit(Math.min(limit, 100)).get();
+    if (snap && !snap.empty) {
+      return snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Omit<CoinLedgerEntry, 'id'>) }));
+    }
+  } catch {
+    // Fallback to Authoritative Store
+  }
+  const storeLedger = authoritativeBackendStore.getLedger(uid, limit);
+  return storeLedger.map((l) => ({
+    id: l.id,
+    userId: l.userId,
+    type: l.type as CoinLedgerType,
+    amount: l.amount,
+    balanceBefore: l.balanceBefore,
+    balanceAfter: l.balanceAfter,
+    bonusBalanceBefore: l.bonusBalanceBefore || 0,
+    bonusBalanceAfter: l.bonusBalanceAfter || 0,
+    actorId: l.actorId,
+    gameId: l.gameId,
+    roundId: l.roundId,
+    referenceId: l.referenceId,
+    status: l.status,
+    idempotencyKey: l.idempotencyKey,
+  }));
 }
 
 export async function applyCoinDelta(params: {
@@ -113,47 +152,62 @@ export async function applyCoinDelta(params: {
   assertAmount(amount);
   if (!idempotencyKey || idempotencyKey.length < 8 || idempotencyKey.length > 120) throw new Error('Valid idempotency key is required.');
 
-  const ledgerDocument = ledgerRef().doc(`tx_${idempotencyKey}`);
-  const db = getAdminDb();
+  try {
+    const ledgerDocument = ledgerRef().doc(`tx_${idempotencyKey}`);
+    const db = getAdminDb();
 
-  return db.runTransaction(async (tx) => {
-    const existing = await tx.get(ledgerDocument);
-    if (existing.exists) return { id: existing.id, ...(existing.data() as object), duplicate: true };
+    return await db.runTransaction(async (tx) => {
+      const existing = await tx.get(ledgerDocument);
+      if (existing.exists) return { id: existing.id, ...(existing.data() as object), duplicate: true };
 
-    const ref = walletRef(userId);
-    const current = await ensureWallet(tx, userId);
-    const before = bonus ? current.bonusBalance : current.balance;
-    const after = before + amount;
+      const ref = walletRef(userId);
+      const current = await ensureWallet(tx, userId);
+      const before = bonus ? current.bonusBalance : current.balance;
+      const after = before + amount;
 
-    tx.set(ref, {
-      uid: userId,
-      balance: bonus ? current.balance : after,
-      bonusBalance: bonus ? after : current.bonusBalance,
-      currency: 'COIN',
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+      tx.set(ref, {
+        uid: userId,
+        balance: bonus ? current.balance : after,
+        bonusBalance: bonus ? after : current.bonusBalance,
+        currency: 'COIN',
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
 
-    tx.create(ledgerDocument, {
-      userId,
-      type,
-      amount,
-      balanceBefore: current.balance,
-      balanceAfter: bonus ? current.balance : after,
-      bonusBalanceBefore: current.bonusBalance,
-      bonusBalanceAfter: bonus ? after : current.bonusBalance,
-      actorId,
-      gameId,
-      roundId,
-      referenceId,
-      status: 'COMPLETED',
-      ip,
-      device,
-      idempotencyKey,
-      createdAt: FieldValue.serverTimestamp(),
+      tx.create(ledgerDocument, {
+        userId,
+        type,
+        amount,
+        balanceBefore: current.balance,
+        balanceAfter: bonus ? current.balance : after,
+        bonusBalanceBefore: current.bonusBalance,
+        bonusBalanceAfter: bonus ? after : current.bonusBalance,
+        actorId,
+        gameId,
+        roundId,
+        referenceId,
+        status: 'COMPLETED',
+        ip,
+        device,
+        idempotencyKey,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      return { id: ledgerDocument.id, userId, amount, type, duplicate: false };
     });
-
-    return { id: ledgerDocument.id, userId, amount, type, duplicate: false };
-  });
+  } catch (err: any) {
+    // Authoritative Backend Store Fallback
+    const storeRes = authoritativeBackendStore.creditWinningSync({
+      userId,
+      amount,
+      type: type === 'HOURLY_PROTECTION' || type === 'HOURLY_PROTECTION_REFUND' ? 'HOURLY_PROTECTION_REFUND' : 'GAME_WIN',
+      gameId: gameId || 'game',
+      roundId: roundId || 'round',
+      entryId: referenceId || 'ref',
+      referenceId,
+      idempotencyKey,
+    });
+    return { id: storeRes.ledgerId, userId, amount, type, duplicate: storeRes.duplicate || false };
+  }
 }
 
 export async function debitCoins(params: {
@@ -170,27 +224,44 @@ export async function debitCoins(params: {
 }) {
   const { userId, actorId, amount, type, gameId, roundId, referenceId, idempotencyKey, ip, device } = params;
   assertAmount(amount);
-  const db = getAdminDb();
-  const ledgerDocument = ledgerRef().doc(`tx_${idempotencyKey}`);
-  return db.runTransaction(async (tx) => {
-    const existing = await tx.get(ledgerDocument);
-    if (existing.exists) return { id: existing.id, ...(existing.data() as object), duplicate: true };
 
-    const ref = walletRef(userId);
-    const current = await ensureWallet(tx, userId);
-    if (current.balance < amount) throw new Error('Insufficient coins.');
-    const after = current.balance - amount;
+  try {
+    const db = getAdminDb();
+    const ledgerDocument = ledgerRef().doc(`tx_${idempotencyKey}`);
+    return await db.runTransaction(async (tx) => {
+      const existing = await tx.get(ledgerDocument);
+      if (existing.exists) return { id: existing.id, ...(existing.data() as object), duplicate: true };
 
-    tx.set(ref, { uid: userId, balance: after, currency: 'COIN', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    tx.create(ledgerDocument, {
-      userId, type, amount: -amount,
-      balanceBefore: current.balance, balanceAfter: after,
-      bonusBalanceBefore: current.bonusBalance, bonusBalanceAfter: current.bonusBalance,
-      actorId, gameId, roundId, referenceId, status: 'COMPLETED', ip, device,
-      idempotencyKey, createdAt: FieldValue.serverTimestamp(),
+      const ref = walletRef(userId);
+      const current = await ensureWallet(tx, userId);
+      if (current.balance < amount) throw new Error('Insufficient coins.');
+      const after = current.balance - amount;
+
+      tx.set(ref, { uid: userId, balance: after, currency: 'COIN', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+      tx.create(ledgerDocument, {
+        userId, type, amount: -amount,
+        balanceBefore: current.balance, balanceAfter: after,
+        bonusBalanceBefore: current.bonusBalance, bonusBalanceAfter: current.bonusBalance,
+        actorId, gameId, roundId, referenceId, status: 'COMPLETED', ip, device,
+        idempotencyKey, createdAt: FieldValue.serverTimestamp(),
+      });
+      return { id: ledgerDocument.id, userId, amount: -amount, type, duplicate: false };
     });
-    return { id: ledgerDocument.id, userId, amount: -amount, type, duplicate: false };
-  });
+  } catch (err: any) {
+    if (err?.message === 'Insufficient coins.') throw err;
+    // Authoritative Backend Store Fallback
+    const storeRes = authoritativeBackendStore.debitStakeSync({
+      userId,
+      amount,
+      gameId: gameId || 'game',
+      roundId: roundId || 'round',
+      idempotencyKey,
+    });
+    if (!storeRes.success) {
+      throw new Error(storeRes.error || 'Insufficient coins.');
+    }
+    return { id: storeRes.ledgerId, userId, amount: -amount, type, duplicate: storeRes.duplicate || false };
+  }
 }
 
 export async function giftBonusCoins(params: { actorUid: string; playerUid: string; amount: number; idempotencyKey: string; note?: string; ip?: string; device?: string }) {

@@ -5,6 +5,7 @@ import {
   ServerGameEntry,
   SERVER_GAMES_CONFIG,
 } from './gameEntryService.ts';
+import { authoritativeBackendStore } from './authoritativeBackendStore.ts';
 
 export interface GameResultRecord {
   resultId: string;
@@ -485,11 +486,19 @@ class ResultSettlementService {
             settledAt: declaredAt,
           });
 
-          // Atomically Credit Demo Main Wallet (Task 11: One Wallet only)
-          serverGameEntryService.creditUserDemoReward(entry.userId, totalEntryCredit);
-
-          // Task 10: Idempotent immutable ledger records with GAME_WIN and HOURLY_PROTECTION_REFUND
+          // Atomically Credit Demo Main Wallet via Authoritative Backend Store with exact ledger integrity
           if (entryBase90x > 0) {
+            authoritativeBackendStore.creditWinningSync({
+              userId: entry.userId,
+              amount: entryBase90x,
+              type: 'GAME_WIN',
+              gameId,
+              roundId,
+              entryId: entry.id,
+              referenceId: resultId,
+              idempotencyKey: `win_${settlementId}_${entry.id}`,
+            });
+
             const winTxId = `TX-WIN-${settlementId}-${entry.id}`;
             const winTx: WalletRewardTransaction = {
               transactionId: winTxId,
@@ -505,6 +514,17 @@ class ResultSettlementService {
           }
 
           if (entryProtectionRefund > 0) {
+            authoritativeBackendStore.creditWinningSync({
+              userId: entry.userId,
+              amount: entryProtectionRefund,
+              type: 'HOURLY_PROTECTION_REFUND',
+              gameId,
+              roundId,
+              entryId: entry.id,
+              referenceId: resultId,
+              idempotencyKey: `prot_${settlementId}_${entry.id}`,
+            });
+
             const refTxId = `TX-PROT-${settlementId}-${entry.id}`;
             const refTx: WalletRewardTransaction = {
               transactionId: refTxId,
@@ -598,6 +618,7 @@ class ResultSettlementService {
       this.results.set(resultId, resultRecord);
       this.resultsByRound.set(roundId, resultRecord);
       this.completedSettlementIds.add(settlementId);
+      authoritativeBackendStore.saveResultSync(resultRecord as any);
 
       // Spawn next active round so bidding can continue for players
       serverGameEntryService.spawnNextRound(gameId);

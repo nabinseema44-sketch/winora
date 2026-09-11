@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { authoritativeBackendStore } from './authoritativeBackendStore.ts';
 
 export interface ServerGameRound {
   id: string;
@@ -32,6 +33,9 @@ export interface ServerGameEntry {
   status: 'CONFIRMED' | 'WON' | 'LOST';
   createdAt: string;
   idempotencyKey?: string;
+  balanceBefore?: number;
+  balanceAfter?: number;
+  ledgerTxId?: string;
   settledReward?: number;
   protectionRefund?: number;
   totalSettlementCredit?: number;
@@ -340,14 +344,14 @@ class GameEntryService {
   }
 
   public getUserBalance(userId: string): { main: number } {
-    if (!this.userDemoBalances.has(userId)) {
-      this.userDemoBalances.set(userId, { main: 5000 });
-    }
-    return this.userDemoBalances.get(userId)!;
+    const wallet = authoritativeBackendStore.getWalletSync(userId);
+    return { main: wallet.balance };
   }
 
   public setUserBalance(userId: string, balances: { main: number }) {
     this.userDemoBalances.set(userId, balances);
+    const wallet = authoritativeBackendStore.getWalletSync(userId);
+    wallet.balance = balances.main;
   }
 
   public getUserEntries(userId: string): ServerGameEntry[] {
@@ -409,10 +413,11 @@ class GameEntryService {
       now >= freezeTimestamp
     ) {
       round.status = 'FROZEN';
+      const isKalyan = gameId.startsWith('kalyan');
       return {
         success: false,
         errorCode: 'ROUND_CLOSED',
-        error: 'Bidding is strictly FROZEN for this round. Server cutoff is enforced 15 minutes prior to draw time.',
+        error: `Bidding is strictly FROZEN for this round. Server cutoff (${isKalyan ? '2 hours' : '15 minutes'} prior to draw time) has been enforced.`,
       };
     }
 
@@ -484,30 +489,43 @@ class GameEntryService {
         };
       }
 
+      // Number-color rule: Even numbers MUST be GREEN, Odd numbers MUST be RED
+      const expectedColor: 'GREEN' | 'RED' = numVal % 2 === 0 ? 'GREEN' : 'RED';
+      if (color !== expectedColor) {
+        return {
+          success: false,
+          errorCode: 'COLOR_MISMATCH',
+          error: `Color mismatch for number ${numStr}. Winora rules strictly mandate Even numbers must be GREEN and Odd numbers must be RED (Expected: ${expectedColor}, Received: ${color}).`,
+        };
+      }
+
       calculatedTotalStake += stake;
     }
 
     const totalStake = calculatedTotalStake;
 
-    // 6. Server-Authoritative Balance Check (Strictly Main Wallet)
-    const balances = this.getUserBalance(userId);
+    // 6. Server-Authoritative Balance Check & Atomic Deduction via Authoritative Backend Store
+    const effectiveIdempotencyKey = idempotencyKey || `bid_${userId}_${round.id}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+    const debitRes = authoritativeBackendStore.debitStakeSync({
+      userId,
+      amount: totalStake,
+      gameId,
+      roundId: round.id,
+      idempotencyKey: effectiveIdempotencyKey,
+    });
 
-    if (balances.main < totalStake) {
+    if (!debitRes.success) {
       return {
         success: false,
         errorCode: 'INSUFFICIENT_CREDITS',
-        error: `Insufficient demo credits in Main Wallet. Required: ₹${totalStake.toLocaleString()}, Available: ₹${balances.main.toLocaleString()}.`,
+        error: debitRes.error || `Insufficient demo credits in Main Wallet. Required: ₹${totalStake.toLocaleString()}, Available: ₹${debitRes.balanceBefore.toLocaleString()}.`,
       };
     }
 
-    // 7. Deduct balance from Main Wallet
-    balances.main -= totalStake;
-    this.userDemoBalances.set(userId, balances);
-
-    // 8. Update Round Pool
+    // 7. Update Round Pool
     round.totalBidsPool += totalStake;
 
-    // 9. Create Immutable Entry Record
+    // 8. Create Immutable Entry Record
     const entryId = `ENTRY-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
     const newEntry: ServerGameEntry = {
       id: entryId,
@@ -521,18 +539,20 @@ class GameEntryService {
       walletUsed: 'main',
       status: 'CONFIRMED',
       createdAt: new Date().toISOString(),
-      idempotencyKey,
+      idempotencyKey: effectiveIdempotencyKey,
+      balanceBefore: debitRes.balanceBefore,
+      balanceAfter: debitRes.balanceAfter,
+      ledgerTxId: debitRes.ledgerId,
     };
 
     this.entries.unshift(newEntry);
-    if (idempotencyKey) {
-      this.idempotencyStore.set(idempotencyKey, newEntry);
-    }
+    this.idempotencyStore.set(effectiveIdempotencyKey, newEntry);
+    authoritativeBackendStore.saveEntrySync(newEntry as any);
 
     return {
       success: true,
       entry: newEntry,
-      remainingBalance: { ...balances },
+      remainingBalance: { main: debitRes.balanceAfter },
     };
   }
 
@@ -563,11 +583,16 @@ class GameEntryService {
   }
 
   public creditUserDemoReward(userId: string, amount: number): { main: number } {
-    const balances = this.getUserBalance(userId);
-    // Every game winning reward & refund is credited to Main Wallet
-    balances.main += amount;
-    this.userDemoBalances.set(userId, balances);
-    return balances;
+    const credRes = authoritativeBackendStore.creditWinningSync({
+      userId,
+      amount,
+      type: 'GAME_WIN',
+      gameId: 'reward',
+      roundId: 'manual',
+      entryId: 'manual',
+      idempotencyKey: `reward_${userId}_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`,
+    });
+    return { main: credRes.balanceAfter };
   }
 
   /**

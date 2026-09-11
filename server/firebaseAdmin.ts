@@ -15,7 +15,7 @@ function getAdminApp(): App {
   }
 
   const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (rawServiceAccount) {
+  if (rawServiceAccount && rawServiceAccount.trim().startsWith('{')) {
     try {
       const parsed = JSON.parse(rawServiceAccount);
       adminApp = initializeApp({

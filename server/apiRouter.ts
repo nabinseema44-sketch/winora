@@ -5,6 +5,8 @@ import { paymentConfigService } from './paymentConfigService.ts';
 import { serverGameEntryService } from './gameEntryService.ts';
 import { serverResultSettlementService } from './resultSettlementService.ts';
 import { serverReferralService } from './referralService.ts';
+import { authoritativeBackendStore } from './authoritativeBackendStore.ts';
+import { runAllTests } from './testAuthoritativeEngine.ts';
 
 export const apiRouter = Router();
 
@@ -830,5 +832,67 @@ apiRouter.get('/results/audit-logs', (req: Request, res: Response) => {
     });
   }
 });
+
+/**
+ * Run Automated Backend Calculations & Security Verification Suite
+ * Executes full flow tests:
+ * - Wallet balances and authoritative deduction
+ * - 90x payout calculation
+ * - 80% Hourly Dhamaka color protection refund calculation
+ * - Idempotent settlement and duplicate prevention
+ * - Rejection of color mismatches, out of bounds numbers, frozen bids, and non-master declaration
+ */
+apiRouter.get('/test/authoritative-suite', async (_req: Request, res: Response) => {
+  try {
+    const report = await runAllTests();
+    res.json({
+      success: true,
+      summary: `${report.passed} tests passed, ${report.failed} tests failed`,
+      passed: report.passed,
+      failed: report.failed,
+      results: report.results,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: err?.message || 'Error running test suite',
+    });
+  }
+});
+
+/**
+ * Get Authoritative Wallet Details and Immutable Ledger
+ */
+apiRouter.get('/authoritative/wallet/:uid', (req: Request, res: Response) => {
+  const { uid } = req.params;
+  const wallet = authoritativeBackendStore.getWalletSync(uid);
+  const ledger = authoritativeBackendStore.getLedger(uid, 50);
+  res.json({
+    success: true,
+    wallet,
+    ledger,
+  });
+});
+
+/**
+ * Authoritative Backend System Diagnostics
+ */
+apiRouter.get('/authoritative/diagnostics', (_req: Request, res: Response) => {
+  const store = authoritativeBackendStore.getStoreSnapshot();
+  res.json({
+    success: true,
+    diagnostics: {
+      walletsCount: Object.keys(store.wallets).length,
+      ledgerEntriesCount: store.ledger.length,
+      gameEntriesCount: store.gameEntries.length,
+      resultsCount: Object.keys(store.results).length,
+      roundsCount: Object.keys(store.rounds).length,
+      isFirestoreAccessible: store.isFirestoreAccessible,
+      lastSyncTime: store.lastSyncTime,
+      version: store.version,
+    },
+  });
+});
+
 
 
