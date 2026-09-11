@@ -1,15 +1,12 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/apiRouter.ts';
 import { coinRouter } from './server/coinRouter.ts';
+import { authoritativeBackendStore } from './server/authoritativeBackendStore.ts';
 import dotenv from 'dotenv';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
@@ -19,8 +16,6 @@ async function startServer() {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // Production must use the authenticated backend/Firebase path.
-  // Do not silently fall back to a local/demo-only environment.
   if (process.env.NODE_ENV === 'production') {
     const requiredFirebaseEnv = ['FIREBASE_PROJECT_ID'];
     const missing = requiredFirebaseEnv.filter((key) => !process.env[key]);
@@ -29,10 +24,11 @@ async function startServer() {
     }
   }
 
-  // New secure prototype wallet API. Every coin operation requires a Firebase ID token.
-  app.use('/api/coin', coinRouter);
+  // Firebase is the persistent backend. Hydrate before accepting requests so a
+  // restart does not reset wallets, entries, rounds, or results to demo state.
+  await authoritativeBackendStore.hydrateFromFirestore();
 
-  // Existing application APIs remain available for the current game UI.
+  app.use('/api/coin', coinRouter);
   app.use('/api', apiRouter);
 
   app.all('/api/*', (_req, res) => {
