@@ -1,6 +1,6 @@
 {
   "name": "WINORA",
-  "description": "Simple, clean, modern mobile-first virtual Coin casual gaming app with 00–99 number prediction, thumb-friendly controls, and instant entry confirmation.",
+  "description": "Fast mobile-first number prediction gaming platform with backend-authoritative real-money INR wallet, manual deposit verification, manual/agent withdrawal, referral tracking, complete game accounting, and Master administration panel.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

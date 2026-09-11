@@ -54,9 +54,6 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
   const [activeStake, setActiveStake] = useState<number>(25);
   const [customStakeInput, setCustomStakeInput] = useState<string>('25');
 
-  // Direct quick number entry input ("any number, any amount")
-  const [quickNumberInput, setQuickNumberInput] = useState<string>('');
-
   // Currently focused number for instant inline amount inspection/editing
   const [focusedNumber, setFocusedNumber] = useState<string | null>(null);
 
@@ -249,46 +246,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
     }
   };
 
-  // 4. Quick Direct Number & Stake Entry ("Any number, any amount")
-  const handleQuickAddNumberAndStake = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (isFrozen) return;
-    setErrorMessage(null);
-
-    const cleanNum = quickNumberInput.trim();
-    if (!cleanNum) {
-      setErrorMessage('Please enter a number from 00 to 99.');
-      return;
-    }
-    const parsedNum = parseInt(cleanNum, 10);
-    if (isNaN(parsedNum) || parsedNum < 0 || parsedNum > 99) {
-      setErrorMessage('Invalid number! Please enter a 2-digit number between 00 and 99.');
-      return;
-    }
-
-    const formattedNum = parsedNum.toString().padStart(2, '0');
-    const stakeToUse = activeStake > 0 ? activeStake : 25;
-
-    const existing = selectionMap.get(formattedNum);
-    if (existing) {
-      // Update this number's stake immediately to the chosen amount
-      handleUpdateNumberStake(formattedNum, stakeToUse);
-      setFocusedNumber(formattedNum);
-      onSuccessToast(`Number ${formattedNum} bid set to ₹${stakeToUse}!`);
-    } else {
-      if (selections.length >= 37) {
-        setErrorMessage('Maximum 37 numbers limit reached per round.');
-        return;
-      }
-      const color: 'GREEN' | 'RED' = parsedNum % 2 === 0 ? 'GREEN' : 'RED';
-      setSelections((prev) => [...prev, { number: formattedNum, stake: stakeToUse, color }]);
-      setFocusedNumber(formattedNum);
-      onSuccessToast(`Number ${formattedNum} selected with ₹${stakeToUse} bid!`);
-    }
-    setQuickNumberInput('');
-  };
-
-  // 5. Number Selection Toggle
+  // 4. Number Selection Toggle
   // When a user selects a number (e.g. 25), the active stake (e.g. ₹25) shows immediately on the tile!
   const handleToggleNumber = (numStr: string) => {
     if (isFrozen) return;
@@ -297,18 +255,13 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
     const existing = selectionMap.get(numStr);
 
     if (existing) {
-      if (focusedNumber !== numStr) {
-        // Focus this number immediately so user can see/edit its amount
-        setFocusedNumber(numStr);
+      // If already selected: focus it to allow adjusting or removing
+      if (focusedNumber === numStr) {
+        // Tapping focused tile again toggles off
+        setSelections((prev) => prev.filter((s) => s.number !== numStr));
+        setFocusedNumber(null);
       } else {
-        // If already focused: if stake is different from activeStake, update it; otherwise toggle off
-        if (existing.stake !== activeStake) {
-          handleUpdateNumberStake(numStr, activeStake);
-          onSuccessToast(`Updated #${numStr} to ₹${activeStake}!`);
-        } else {
-          setSelections((prev) => prev.filter((s) => s.number !== numStr));
-          setFocusedNumber(null);
-        }
+        setFocusedNumber(numStr);
       }
     } else {
       // Not selected: check max 37 limit
@@ -653,13 +606,13 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
             </div>
 
             {/* 2. BID AMOUNT SELECTOR: Preset Chips & Any Custom Amount */}
-            <div className="bg-zinc-950 p-3 rounded-2xl border border-zinc-800 space-y-3">
+            <div className="bg-zinc-950 p-3 rounded-2xl border border-zinc-800 space-y-2.5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <span className="text-xs font-black uppercase text-zinc-300 tracking-wider flex items-center gap-1.5">
                     <span>Select Bid Amount</span>
                     <span className="text-[10px] text-zinc-400 font-normal normal-case">
-                      (Choose any amount, then tap any number on board to bid immediately)
+                      (Tap any amount, then tap numbers to place immediately)
                     </span>
                   </span>
                 </div>
@@ -729,52 +682,6 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                   );
                 })}
               </div>
-
-              {/* Direct Quick Bid: Any Number, Any Amount Input Form */}
-              <form
-                onSubmit={handleQuickAddNumberAndStake}
-                className="bg-zinc-900/80 border border-zinc-800 p-2 sm:p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs"
-              >
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-zinc-300 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Quick Direct Bid:</span>
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <label className="text-zinc-400 text-[11px]">Number:</label>
-                    <input
-                      type="text"
-                      maxLength={2}
-                      disabled={isFrozen}
-                      value={quickNumberInput}
-                      onChange={(e) => setQuickNumberInput(e.target.value.replace(/[^0-9]/g, ''))}
-                      placeholder="e.g. 25"
-                      className="w-16 px-2 py-1 bg-zinc-950 border border-zinc-700 rounded-lg text-center font-mono font-black text-amber-400 focus:outline-none focus:border-amber-400 text-xs"
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <label className="text-zinc-400 text-[11px]">Bid ₹:</label>
-                    <input
-                      type="number"
-                      min="1"
-                      disabled={isFrozen}
-                      value={customStakeInput}
-                      onChange={(e) => handleCustomStakeInput(e.target.value)}
-                      placeholder="25"
-                      className="w-20 px-2 py-1 bg-zinc-950 border border-zinc-700 rounded-lg text-center font-mono font-black text-emerald-400 focus:outline-none focus:border-amber-400 text-xs"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isFrozen || !quickNumberInput}
-                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Place Bid Immediately</span>
-                </button>
-              </form>
             </div>
 
             {/* 3. INSTANT FOCUSED NUMBER INSPECTOR (Shows immediately when a number is selected!) */}
@@ -813,40 +720,59 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
 
                 {/* Instant Amount Adjuster on this focused number */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-bold text-zinc-400">Set Bid:</span>
-                  <div className="flex items-center bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-0.5 focus-within:border-amber-400">
-                    <span className="text-zinc-400 font-bold text-xs mr-1">₹</span>
-                    <input
-                      type="number"
-                      min="1"
-                      disabled={isFrozen}
-                      value={focusedSelection?.stake || activeStake}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        if (!isNaN(val) && val > 0) {
-                          handleUpdateNumberStake(focusedNumber, val);
-                        }
-                      }}
-                      className="w-16 bg-transparent font-mono font-black text-amber-400 text-xs text-center focus:outline-none"
-                    />
-                  </div>
-
-                  {[10, 25, 50, 100, 500].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      disabled={isFrozen}
-                      onClick={() => handleUpdateNumberStake(focusedNumber, preset)}
-                      className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
-                        (focusedSelection?.stake || activeStake) === preset
-                          ? 'bg-amber-400 text-zinc-950 border-amber-300 font-black'
-                          : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-750 border-zinc-700'
-                      }`}
-                    >
-                      ₹{preset}
-                    </button>
-                  ))}
-
+                  <span className="text-[11px] font-bold text-zinc-400">Adjust Bid:</span>
+                  <button
+                    type="button"
+                    disabled={isFrozen}
+                    onClick={() =>
+                      handleUpdateNumberStake(
+                        focusedNumber,
+                        Math.max(1, (focusedSelection?.stake || activeStake) - 5)
+                      )
+                    }
+                    className="px-2 py-1 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-bold border border-zinc-700 cursor-pointer"
+                  >
+                    -5
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isFrozen}
+                    onClick={() =>
+                      handleUpdateNumberStake(
+                        focusedNumber,
+                        (focusedSelection?.stake || activeStake) + 5
+                      )
+                    }
+                    className="px-2 py-1 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-bold border border-zinc-700 cursor-pointer"
+                  >
+                    +5
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isFrozen}
+                    onClick={() =>
+                      handleUpdateNumberStake(
+                        focusedNumber,
+                        (focusedSelection?.stake || activeStake) + 25
+                      )
+                    }
+                    className="px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-xs font-bold border border-amber-500/30 cursor-pointer"
+                  >
+                    +25
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isFrozen}
+                    onClick={() =>
+                      handleUpdateNumberStake(
+                        focusedNumber,
+                        (focusedSelection?.stake || activeStake) + 50
+                      )
+                    }
+                    className="px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-xs font-bold border border-amber-500/30 cursor-pointer"
+                  >
+                    +50
+                  </button>
                   <button
                     type="button"
                     disabled={isFrozen}
@@ -854,7 +780,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                       setSelections((prev) => prev.filter((s) => s.number !== focusedNumber));
                       setFocusedNumber(null);
                     }}
-                    className="px-2 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-xs font-bold border border-rose-500/30 flex items-center gap-1 cursor-pointer ml-1"
+                    className="px-2 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-xs font-bold border border-rose-500/30 flex items-center gap-1 cursor-pointer"
                     title="Remove this number"
                   >
                     <Trash2 className="w-3 h-3" />

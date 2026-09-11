@@ -422,22 +422,13 @@ export interface DepositRequestRecord {
   reviewNote?: string;
 }
 
-export interface BankAccountDetails {
-  accountNumber: string;
-  ifscCode: string;
-  bankName?: string;
-  accountHolderName: string;
-}
-
 export interface WithdrawalRequestRecord {
   requestId: string;
   playerId: string;
   playerName: string;
   playerPhone?: string;
   amountPaise: number;
-  payoutMethod?: 'UPI' | 'BANK';
-  upiId?: string;
-  bankAccount?: BankAccountDetails;
+  upiId: string;
   accountName: string;
   status: 'PENDING' | 'PROCESSING' | 'APPROVED' | 'REJECTED';
   createdAt: string;
@@ -462,7 +453,6 @@ export interface AgentCommissionRecord {
 export interface MasterPaymentSettings {
   enabled: boolean;
   paymentUrl: string;
-  qrCodeUrl?: string;
   upiId: string;
   accountHolderName: string;
   instructions: string;
