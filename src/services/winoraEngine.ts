@@ -38,38 +38,64 @@ import {
   MasterDashboardStats,
   ReferralRecord,
 } from '../types.ts';
+import {
+  getHourlyPlayRound,
+  getKalyanRound,
+  formatISTTime,
+  KALYAN_SCHEDULE,
+} from '../utils/istTime.ts';
 
 // ---------------------------------------------------------------------------
 // 1. GAME DEFINITIONS (Kalyan Morning, Kalyan, Kalyan Night, Hourly Play)
 // ---------------------------------------------------------------------------
 export const WINORA_GAMES: WinoraGameConfig[] = [
   {
+    id: 'hourly_play',
+    name: 'Hourly Play',
+    code: 'HP-80P',
+    subtitle: 'Every Hour 24×7 (IST) | 15-min Freeze | 80% Protection Refund',
+    openTime: 'Every Hour',
+    resultTime: 'Top of Hour',
+    payoutMultiplier: 90,
+    singleDigitMultiplier: 9,
+    hasHourlyProtection: true,
+    hasGreenRefund: true,
+    refundPercentage: 80,
+    twoDigitOnly: true,
+    description:
+      'PRIORITY GAME! Two-digit 00-99 draws every hour (e.g. 7 AM to 8 AM IST). 90× winning payout. If declared number is GREEN, ALL green bids get 80% refund! If declared number is RED, ALL red bids get 80% refund!',
+    accentColor: 'from-emerald-500 to-teal-600',
+    intervalMinutes: 60,
+  },
+  {
     id: 'kalyan_morning',
     name: 'Kalyan Morning',
     code: 'KM-90',
-    subtitle: 'Open: 11:40 AM | Result: 12:40 PM',
-    openTime: '11:40 AM',
-    resultTime: '12:40 PM',
+    subtitle: 'Close: 09:30 AM IST | Result: 11:30 AM IST (Closes 2 hr before)',
+    openTime: '09:30 AM IST',
+    resultTime: '11:30 AM IST',
     payoutMultiplier: 90,
     singleDigitMultiplier: 9,
     hasHourlyProtection: false,
     hasGreenRefund: false,
-    description: 'Premier morning session. Single digit (9×) and Two digit Jodi (90×) with strict 15-min freeze.',
+    description:
+      'Premier morning market. Single digit (9×) and Two digit Jodi (90×). Bidding closes strictly 2 hours before declaration.',
     accentColor: 'from-amber-500 to-yellow-600',
-    intervalMinutes: 60,
+    intervalMinutes: 120,
   },
   {
     id: 'kalyan',
     name: 'Kalyan',
     code: 'KL-90',
-    subtitle: 'Open: 4:35 PM | Result: 6:35 PM',
-    openTime: '4:35 PM',
-    resultTime: '6:35 PM',
+    subtitle: 'Close: 02:30 PM IST | Result: 04:30 PM IST (Closes 2 hr before)',
+    openTime: '02:30 PM IST',
+    resultTime: '04:30 PM IST',
     payoutMultiplier: 90,
     singleDigitMultiplier: 9,
     hasHourlyProtection: false,
     hasGreenRefund: false,
-    description: 'Flagship afternoon session with deep liquidity. Single digit (9×) and Two digit Jodi (90×).',
+    description:
+      'Flagship afternoon session with deep liquidity. Single digit (9×) and Two digit Jodi (90×). Bidding closes strictly 2 hours before declaration.',
     accentColor: 'from-blue-600 to-indigo-700',
     intervalMinutes: 120,
   },
@@ -77,33 +103,17 @@ export const WINORA_GAMES: WinoraGameConfig[] = [
     id: 'kalyan_night',
     name: 'Kalyan Night',
     code: 'KN-90',
-    subtitle: 'Open: 9:40 PM | Result: 11:40 PM',
-    openTime: '9:40 PM',
-    resultTime: '11:40 PM',
+    subtitle: 'Close: 09:45 PM IST | Result: 11:45 PM IST (Closes 2 hr before)',
+    openTime: '09:45 PM IST',
+    resultTime: '11:45 PM IST',
     payoutMultiplier: 90,
     singleDigitMultiplier: 9,
     hasHourlyProtection: false,
     hasGreenRefund: false,
-    description: 'Evening high-yield session. Single digit (9×) and Two digit Jodi (90×) with backend settlement.',
+    description:
+      'Evening high-yield session. Single digit (9×) and Two digit Jodi (90×). Bidding closes strictly 2 hours before declaration.',
     accentColor: 'from-purple-600 to-pink-600',
     intervalMinutes: 120,
-  },
-  {
-    id: 'hourly_play',
-    name: 'Hourly Play',
-    code: 'HP-80P',
-    subtitle: '7:00 AM – 9:00 PM | Hourly Draws + 80% Protection',
-    openTime: '7:00 AM',
-    resultTime: '9:00 PM',
-    payoutMultiplier: 90,
-    singleDigitMultiplier: 9,
-    hasHourlyProtection: true,
-    hasGreenRefund: true,
-    refundPercentage: 80,
-    twoDigitOnly: true,
-    description: 'Two-digit 00-99 draw every hour. 90× winning payout + 80% Protection Refund on Green (Even) / Red (Odd) as Bonus Balance.',
-    accentColor: 'from-emerald-500 to-teal-600',
-    intervalMinutes: 60,
   },
 ];
 
@@ -199,21 +209,20 @@ export const MOCK_MASTER: UserProfile = {
 };
 
 export const DEFAULT_PLAYER: UserProfile = {
-  id: 'player-arjun',
-  displayName: 'Arjun Mehta',
+  id: 'player-user',
+  displayName: 'WINORA Player',
   phoneNumber: '+91 98765 43210',
-  withdrawableBalancePaise: 350000, // ₹3,500 Withdrawable
-  bonusBalancePaise: 50000,        // ₹500 Bonus Balance (Non-withdrawable)
-  walletBalance: 3500,
-  mainBalance: 4000,
+  withdrawableBalancePaise: 0, // ₹0.00 Withdrawable
+  bonusBalancePaise: 0,        // ₹0.00 Bonus Balance
+  walletBalance: 0,
+  mainBalance: 0,
   currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee (₹)' },
-  avatar: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80',
-  tier: 'Silver',
+  tier: 'Bronze',
   joinedDate: 'March 2026',
-  level: 3,
+  level: 1,
   role: 'user',
   status: 'active',
-  address: '42 Lotus Colony, Indiranagar',
+  address: 'Indiranagar',
   pincode: '560038',
   assignedAgentId: 'agent-vikram',
   assignedAgentName: 'Vikram Sharma (Agent)',
@@ -221,112 +230,101 @@ export const DEFAULT_PLAYER: UserProfile = {
   referralCode: 'WIN78ARJ1',
   referredByUserId: 'player-sumit',
   referrerId: 'player-sumit',
-  hasMadeFirstDeposit: true,
+  hasMadeFirstDeposit: false,
   stats: {
-    gamesPlayed: 34,
-    highestVirtualWin: 9000,
+    gamesPlayed: 0,
+    highestVirtualWin: 0,
     favoriteCategory: 'Hourly Play',
-    winRate: '32%',
+    winRate: '0%',
   },
 };
 
-// Helper to create future round times with 15-minute freeze cutoff
-function createRoundTimes(minuteOffset: number) {
-  const now = new Date();
-  const declare = new Date(now.getTime() + minuteOffset * 60 * 1000);
-  const freeze = new Date(declare.getTime() - 15 * 60 * 1000);
-  return {
-    declareTime: declare.toISOString(),
-    freezeTime: freeze.toISOString(),
-  };
-}
-
 export function generateInitialRounds(): Record<WinoraGameId, GameRound> {
-  const tM = createRoundTimes(28); // 28 mins left -> freeze in 13 mins
-  const tK = createRoundTimes(45); // 45 mins left -> freeze in 30 mins
-  const tN = createRoundTimes(14); // 14 mins left -> ALREADY FROZEN (< 15 mins)
-  const tH = createRoundTimes(35); // 35 mins left -> freeze in 20 mins
+  const hp = getHourlyPlayRound();
+  const km = getKalyanRound('kalyan_morning');
+  const kl = getKalyanRound('kalyan');
+  const kn = getKalyanRound('kalyan_night');
 
   return {
+    hourly_play: {
+      id: `round-hp-${hp.roundNumber}`,
+      gameId: 'hourly_play',
+      gameName: hp.gameName,
+      roundNumber: hp.roundNumber,
+      freezeTime: hp.freezeTimeISO,
+      declareTime: hp.declareTimeISO,
+      status: hp.isFrozen ? 'frozen' : 'open',
+      totalBidsPool: 56800,
+    },
     kalyan_morning: {
-      id: 'round-km-101',
+      id: `round-km-${km.roundNumber}`,
       gameId: 'kalyan_morning',
       gameName: 'Kalyan Morning (90×)',
-      roundNumber: 101,
-      freezeTime: tM.freezeTime,
-      declareTime: tM.declareTime,
-      status: 'open',
+      roundNumber: km.roundNumber,
+      freezeTime: km.freezeTimeISO,
+      declareTime: km.declareTimeISO,
+      status: km.isFrozen ? 'frozen' : 'open',
       totalBidsPool: 24500,
     },
     kalyan: {
-      id: 'round-kl-204',
+      id: `round-kl-${kl.roundNumber}`,
       gameId: 'kalyan',
       gameName: 'Kalyan (90×)',
-      roundNumber: 204,
-      freezeTime: tK.freezeTime,
-      declareTime: tK.declareTime,
-      status: 'open',
+      roundNumber: kl.roundNumber,
+      freezeTime: kl.freezeTimeISO,
+      declareTime: kl.declareTimeISO,
+      status: kl.isFrozen ? 'frozen' : 'open',
       totalBidsPool: 18200,
     },
     kalyan_night: {
-      id: 'round-kn-309',
+      id: `round-kn-${kn.roundNumber}`,
       gameId: 'kalyan_night',
       gameName: 'Kalyan Night (90×)',
-      roundNumber: 309,
-      freezeTime: tN.freezeTime,
-      declareTime: tN.declareTime,
-      status: 'frozen',
+      roundNumber: kn.roundNumber,
+      freezeTime: kn.freezeTimeISO,
+      declareTime: kn.declareTimeISO,
+      status: kn.isFrozen ? 'frozen' : 'open',
       totalBidsPool: 41200,
-    },
-    hourly_play: {
-      id: 'round-hp-412',
-      gameId: 'hourly_play',
-      gameName: 'Hourly Play (90× + 80% Protection)',
-      roundNumber: 412,
-      freezeTime: tH.freezeTime,
-      declareTime: tH.declareTime,
-      status: 'open',
-      totalBidsPool: 56800,
     },
     // Aliases for backwards compatibility with earlier components
     game_x: {
-      id: 'round-km-101',
+      id: `round-km-${km.roundNumber}`,
       gameId: 'game_x',
       gameName: 'Kalyan Morning',
-      roundNumber: 101,
-      freezeTime: tM.freezeTime,
-      declareTime: tM.declareTime,
-      status: 'open',
+      roundNumber: km.roundNumber,
+      freezeTime: km.freezeTimeISO,
+      declareTime: km.declareTimeISO,
+      status: km.isFrozen ? 'frozen' : 'open',
       totalBidsPool: 24500,
     },
     game_y: {
-      id: 'round-kl-204',
+      id: `round-kl-${kl.roundNumber}`,
       gameId: 'game_y',
       gameName: 'Kalyan',
-      roundNumber: 204,
-      freezeTime: tK.freezeTime,
-      declareTime: tK.declareTime,
-      status: 'open',
+      roundNumber: kl.roundNumber,
+      freezeTime: kl.freezeTimeISO,
+      declareTime: kl.declareTimeISO,
+      status: kl.isFrozen ? 'frozen' : 'open',
       totalBidsPool: 18200,
     },
     game_z: {
-      id: 'round-kn-309',
+      id: `round-kn-${kn.roundNumber}`,
       gameId: 'game_z',
       gameName: 'Kalyan Night',
-      roundNumber: 309,
-      freezeTime: tN.freezeTime,
-      declareTime: tN.declareTime,
-      status: 'frozen',
+      roundNumber: kn.roundNumber,
+      freezeTime: kn.freezeTimeISO,
+      declareTime: kn.declareTimeISO,
+      status: kn.isFrozen ? 'frozen' : 'open',
       totalBidsPool: 41200,
     },
     hourly_dhamaka: {
-      id: 'round-hp-412',
+      id: `round-hp-${hp.roundNumber}`,
       gameId: 'hourly_dhamaka',
       gameName: 'Hourly Play',
-      roundNumber: 412,
-      freezeTime: tH.freezeTime,
-      declareTime: tH.declareTime,
-      status: 'open',
+      roundNumber: hp.roundNumber,
+      freezeTime: hp.freezeTimeISO,
+      declareTime: hp.declareTimeISO,
+      status: hp.isFrozen ? 'frozen' : 'open',
       totalBidsPool: 56800,
     },
   };
@@ -1408,10 +1406,10 @@ class WinoraStateManager {
       displayName: params.displayName,
       phoneNumber: params.phoneNumber,
       role: 'player',
-      walletBalance: 1000,
-      mainBalance: 1500,
-      withdrawableBalancePaise: 100000, // ₹1,000 Withdrawable Balance
-      bonusBalancePaise: 50000, // ₹500 Bonus Balance (non-withdrawable)
+      walletBalance: 0,
+      mainBalance: 0,
+      withdrawableBalancePaise: 0, // ₹0.00 Initial Withdrawable Balance
+      bonusBalancePaise: 0, // ₹0.00 Initial Bonus Balance
       agentCommissionBalancePaise: 0,
       tier: 'Bronze',
       level: 1,
@@ -1421,35 +1419,19 @@ class WinoraStateManager {
       assignedAgentName: 'Vikram Sharma (Agent)',
       address: params.address,
       pincode: params.pincode,
-      avatar:
-        params.avatar ||
-        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
+      avatar: '',
       joinedDate: new Date().toISOString(),
       currency: { code: 'INR', symbol: '₹', name: 'Indian Rupee' },
       stats: {
         gamesPlayed: 0,
         highestVirtualWin: 0,
-        favoriteCategory: 'numbers',
+        favoriteCategory: 'Hourly Play',
         winRate: '0%',
       },
     };
 
     this.players.push(newPlayer);
     this.currentUser = newPlayer;
-
-    this.recordLedgerEntry({
-      userId: newPlayer.id,
-      role: 'player',
-      transactionType: 'BONUS_REWARD',
-      amountPaise: 150000,
-      balanceBeforePaise: 0,
-      balanceAfterPaise: 100000,
-      bonusBeforePaise: 0,
-      bonusAfterPaise: 50000,
-      actorId: 'system',
-      status: 'COMPLETED',
-      description: 'Account registration: ₹1,000 Withdrawable Balance + ₹500 Bonus Balance credited.',
-    });
 
     if (params.referralCode) {
       this.recordReferralRegistration(params.referralCode, newPlayer);
@@ -1481,13 +1463,17 @@ class WinoraStateManager {
       return { success: false, message: 'Invalid game round.', totalDebitedPaise: 0 };
     }
 
-    // Strict 15-Minute Freeze Check
+    // Strict Freeze & Close Check
     const now = Date.now();
     const freezeTimestamp = new Date(round.freezeTime).getTime();
+    const isKalyan = resolvedGameId.startsWith('kalyan');
+
     if (now >= freezeTimestamp || round.status === 'frozen' || round.status === 'completed') {
       return {
         success: false,
-        message: 'Bidding is strictly FROZEN! Cutoff occurs 15 minutes prior to result declaration.',
+        message: isKalyan
+          ? 'Bidding is strictly CLOSED! Kalyan markets close 2 hours prior to result declaration.'
+          : 'Bidding is strictly FROZEN! Hourly bids freeze 15 minutes prior to result declaration.',
         totalDebitedPaise: 0,
       };
     }
@@ -1591,7 +1577,7 @@ class WinoraStateManager {
     highestLossNumber: number;
     highestProfitNumber: number;
   } {
-    const resolvedGameId =
+    const resolvedGameId: string =
       gameId === 'game_x' ? 'kalyan_morning' :
       gameId === 'game_y' ? 'kalyan' :
       gameId === 'game_z' ? 'kalyan_night' :
@@ -1717,7 +1703,7 @@ class WinoraStateManager {
     totalProtectionPaidPaise: number;
     netHousePnLPaise: number;
   } {
-    const resolvedGameId =
+    const resolvedGameId: string =
       gameId === 'game_x' ? 'kalyan_morning' :
       gameId === 'game_y' ? 'kalyan' :
       gameId === 'game_z' ? 'kalyan_night' :
@@ -1858,14 +1844,21 @@ class WinoraStateManager {
     });
 
     // Advance round to new round
-    const nextTimes = createRoundTimes(60);
+    const nowMs = Date.now();
+    const isHourlyRound = resolvedGameId === 'hourly_play' || resolvedGameId === 'hourly_dhamaka';
+    const isKalyanRound = resolvedGameId.startsWith('kalyan');
+    const freezeBufferMinutes = isKalyanRound ? 120 : 15;
+    const durationMinutes = isHourlyRound ? 60 : 360;
+    const nextFreezeTime = new Date(nowMs + Math.max(5, durationMinutes - freezeBufferMinutes) * 60000).toISOString();
+    const nextDeclareTime = new Date(nowMs + durationMinutes * 60000).toISOString();
+
     this.rounds[resolvedGameId] = {
       id: `round-${resolvedGameId}-${round.roundNumber + 1}`,
       gameId: resolvedGameId,
       gameName: round.gameName,
       roundNumber: round.roundNumber + 1,
-      freezeTime: nextTimes.freezeTime,
-      declareTime: nextTimes.declareTime,
+      freezeTime: nextFreezeTime,
+      declareTime: nextDeclareTime,
       status: 'open',
       totalBidsPool: 0,
     };

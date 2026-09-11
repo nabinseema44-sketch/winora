@@ -222,9 +222,8 @@ class ResultSettlementService {
         if (sel.number === winningNumber) {
           potential90xLiability += sel.stake * (gameConfig?.payoutMultiplier || 90);
           winningBidsCount++;
-        }
-        // Task 6 & 8: Protection liability applies ONLY to Hourly Dhamaka, exactly 0 for Game X/Y/Z
-        if (isHourlyDhamaka && sel.color === resultColor) {
+        } else if (isHourlyDhamaka && sel.color === resultColor) {
+          // Protection liability applies only to eligible non-winning bids on the matching winning color
           protectionRefundLiability += Number((sel.stake * 0.8).toFixed(2));
           matchingColorBidsCount++;
         }
@@ -455,14 +454,11 @@ class ResultSettlementService {
         let entryProtectionRefund = 0;
 
         for (const sel of entry.selections) {
-          // Task 6: 90x payout if selection matches winning number
+          // 90x payout if selection matches winning number
           if (sel.number === winningNumber) {
             entryBase90x += sel.stake * gameConfig.payoutMultiplier;
-          }
-
-          // Task 7: 80% protection refund ONLY for Hourly Dhamaka if selection color matches declared resultColor
-          // Task 6: For Game X, Y, Z, protection refund is strictly ₹0
-          if (isHourlyDhamaka && sel.color === resultColor) {
+          } else if (isHourlyDhamaka && sel.color === resultColor) {
+            // 80% protection refund ONLY if selection color matches declared resultColor and did not win 90x!
             entryProtectionRefund += Number((sel.stake * 0.8).toFixed(2));
           }
         }

@@ -18,17 +18,19 @@ import { AgentPortalPage } from './pages/AgentPortalPage.tsx';
 import { MasterPortalPage } from './pages/MasterPortalPage.tsx';
 
 import { DEFAULT_PLAYER_AVATAR, MOCK_GAMES } from './data/mockData.ts';
-import { GameItem, NavPage, UserProfile } from './types.ts';
+import { GameItem, NavPage, UserProfile, WinoraGameConfig } from './types.ts';
 import { CheckCircle2, Shield } from 'lucide-react';
 import { onAuthChange, logoutUser } from './firebase/authService.ts';
 import { getUserProfile } from './firebase/firestoreService.ts';
 import { winoraEngine } from './services/winoraEngine.ts';
+import { GameBoardModal } from './components/GameBoardModal.tsx';
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<NavPage>('games');
+  const [currentPage, setCurrentPage] = useState<NavPage>('home');
   const [user, setUser] = useState<UserProfile>(winoraEngine.getCurrentUser());
   const [games] = useState<GameItem[]>(MOCK_GAMES);
   const [selectedGame, setSelectedGame] = useState<GameItem | null>(null);
+  const [activeBiddingGame, setActiveBiddingGame] = useState<WinoraGameConfig | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showSqlModal, setShowSqlModal] = useState(false);
 
@@ -122,7 +124,15 @@ export default function App() {
       )}
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
-        {currentPage === 'home' && <HomePage games={games} user={user} onNavigate={handleNavigate} onSelectGame={(game) => setSelectedGame(game)} />}
+        {currentPage === 'home' && (
+          <HomePage
+            games={games}
+            user={user}
+            onNavigate={handleNavigate}
+            onSelectGame={(game) => setSelectedGame(game)}
+            onOpenWinoraGame={(gameConfig) => setActiveBiddingGame(gameConfig)}
+          />
+        )}
         {currentPage === 'games' && <GamesPage user={user} onToast={showToast} />}
         {currentPage === 'history' && <HistoryPage user={user} />}
         {currentPage === 'agent' && <AgentPortalPage currentAgent={user} onToast={showToast} />}
@@ -144,6 +154,25 @@ export default function App() {
 
       <BottomNav currentPage={currentPage} onNavigate={handleNavigate} />
       <GamePreviewModal game={selectedGame} onClose={() => setSelectedGame(null)} />
+      {activeBiddingGame && (
+        <GameBoardModal
+          game={activeBiddingGame}
+          initialRound={winoraEngine.getRounds()[activeBiddingGame.id] || {
+            id: `round-${activeBiddingGame.id}-1`,
+            gameId: activeBiddingGame.id,
+            gameName: activeBiddingGame.name,
+            roundNumber: 101,
+            openTime: new Date().toISOString(),
+            freezeTime: new Date(Date.now() + 15 * 60000).toISOString(),
+            declareTime: new Date(Date.now() + 30 * 60000).toISOString(),
+            status: 'open',
+            totalBidsPool: 0,
+          }}
+          user={user}
+          onClose={() => setActiveBiddingGame(null)}
+          onSuccessToast={showToast}
+        />
+      )}
       {showSqlModal && <SqlSchemaModal onClose={() => setShowSqlModal(false)} onToast={showToast} />}
     </div>
   );

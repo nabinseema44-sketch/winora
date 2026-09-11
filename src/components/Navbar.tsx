@@ -1,20 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  Wallet,
   ArrowDownLeft,
   LogIn,
   UserPlus,
-  Coins,
-  History,
-  ShieldAlert,
-  Users,
-  Crown,
-  ChevronDown,
-  Sparkles,
+  User,
 } from 'lucide-react';
 import { Logo } from './Logo.tsx';
 import { NavPage, UserProfile } from '../types.ts';
-import { winoraEngine } from '../services/winoraEngine.ts';
 
 interface NavbarProps {
   currentPage: NavPage;
@@ -29,10 +21,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigate,
   user,
   onOpenDeposit,
-  onRoleSwitch,
 }) => {
-  const [showRoleMenu, setShowRoleMenu] = useState(false);
-
   const mainBalance = user?.mainBalance ?? user?.walletBalance ?? 0;
   const role = user?.role || 'player';
 
@@ -63,68 +52,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Logo size="sm" />
           </button>
 
-          {/* Quick Role Persona Switcher */}
-          <div className="relative">
-            <button
-              onClick={() => setShowRoleMenu(!showRoleMenu)}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors bg-zinc-900 border-zinc-800 hover:border-amber-500/50 cursor-pointer"
-            >
-              {role === 'master' && <Crown className="w-3.5 h-3.5 text-amber-400" />}
-              {role === 'agent' && <Users className="w-3.5 h-3.5 text-purple-400" />}
-              {role === 'player' && <Sparkles className="w-3.5 h-3.5 text-emerald-400" />}
-              <span className="capitalize text-zinc-200">
-                {role === 'master' ? 'Master' : role === 'agent' ? 'Agent' : 'Player'}
-              </span>
-              <ChevronDown className="w-3 h-3 text-zinc-400" />
-            </button>
-
-            {showRoleMenu && (
-              <div className="absolute left-0 mt-2 w-48 bg-zinc-900 border border-zinc-750 rounded-xl shadow-2xl p-1.5 z-50 text-xs">
-                <span className="text-[10px] uppercase font-bold text-zinc-400 px-2 py-1 block">
-                  Switch Persona
-                </span>
-                <button
-                  onClick={() => {
-                    winoraEngine.switchUserRole('player');
-                    onRoleSwitch?.('player');
-                    setShowRoleMenu(false);
-                  }}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors cursor-pointer ${
-                    role === 'player' ? 'bg-amber-500/20 text-amber-300 font-bold' : 'text-zinc-300 hover:bg-zinc-800'
-                  }`}
-                >
-                  <span>Player (End User)</span>
-                  <span className="text-[10px] text-zinc-400">90× Bids</span>
-                </button>
-                <button
-                  onClick={() => {
-                    winoraEngine.switchUserRole('agent');
-                    onRoleSwitch?.('agent');
-                    setShowRoleMenu(false);
-                  }}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors cursor-pointer ${
-                    role === 'agent' ? 'bg-amber-500/20 text-amber-300 font-bold' : 'text-zinc-300 hover:bg-zinc-800'
-                  }`}
-                >
-                  <span>Agent Vikram</span>
-                  <span className="text-[10px] text-zinc-400">10% Comm</span>
-                </button>
-                <button
-                  onClick={() => {
-                    winoraEngine.switchUserRole('master');
-                    onRoleSwitch?.('master');
-                    setShowRoleMenu(false);
-                  }}
-                  className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors cursor-pointer ${
-                    role === 'master' ? 'bg-amber-500/20 text-amber-300 font-bold' : 'text-zinc-300 hover:bg-zinc-800'
-                  }`}
-                >
-                  <span>Master SuperAdmin</span>
-                  <span className="text-[10px] text-zinc-400">00–99 Risk</span>
-                </button>
-              </div>
-            )}
-          </div>
+          {role !== 'player' && (
+            <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30">
+              {role}
+            </span>
+          )}
         </div>
 
         {/* Desktop Navigation Links */}
@@ -191,21 +123,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               </div>
 
-              {/* Profile Avatar Button */}
+              {/* Profile Button */}
               <button
                 id="nav-profile-btn"
                 onClick={() => onNavigate('profile')}
-                className={`flex items-center gap-1.5 p-1 pl-1 pr-2 rounded-full border transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 p-1 pl-1.5 pr-2.5 rounded-full border transition-all cursor-pointer ${
                   currentPage === 'profile'
                     ? 'bg-zinc-800 border-amber-500/50 text-amber-300'
                     : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700'
                 }`}
               >
-                <img
-                  src={user.avatar}
-                  alt={user.displayName}
-                  className="w-7 h-7 rounded-full object-cover ring-1 ring-zinc-700"
-                />
+                <div className="w-6 h-6 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-amber-400">
+                  <User className="w-3.5 h-3.5" />
+                </div>
                 <span className="hidden lg:inline text-xs font-semibold max-w-[100px] truncate">
                   {user.displayName}
                 </span>

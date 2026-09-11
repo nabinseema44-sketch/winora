@@ -1,6 +1,6 @@
 import { GameItem, WalletTransaction } from '../types.ts';
 
-export const DEFAULT_PLAYER_AVATAR = 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150&auto=format&fit=crop&q=80';
+export const DEFAULT_PLAYER_AVATAR = '';
 
 export const MOCK_GAMES: GameItem[] = [
   {

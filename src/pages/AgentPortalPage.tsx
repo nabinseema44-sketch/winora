@@ -16,6 +16,7 @@ import {
   Copy,
   TrendingUp,
   Wallet,
+  User,
 } from 'lucide-react';
 import { UserProfile, HandshakeTransaction, formatPaise } from '../types.ts';
 import { winoraEngine } from '../services/winoraEngine.ts';
@@ -95,11 +96,9 @@ export const AgentPortalPage: React.FC<AgentPortalPageProps> = ({ currentAgent, 
       {/* Agent Header Profile Card */}
       <div className="bg-gradient-to-r from-zinc-900 via-zinc-850 to-zinc-900 border border-zinc-800 p-5 sm:p-6 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <img
-            src={currentAgent.avatar}
-            alt={currentAgent.displayName}
-            className="w-14 h-14 rounded-2xl object-cover border-2 border-amber-500/50 shadow-md"
-          />
+          <div className="w-14 h-14 rounded-2xl bg-zinc-800 border-2 border-amber-500/50 flex items-center justify-center text-amber-400 shadow-md shrink-0">
+            <User className="w-7 h-7" />
+          </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
@@ -377,11 +376,9 @@ export const AgentPortalPage: React.FC<AgentPortalPageProps> = ({ currentAgent, 
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <img
-                      src={player.avatar}
-                      alt={player.displayName}
-                      className="w-10 h-10 rounded-xl object-cover border border-zinc-700"
-                    />
+                    <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-amber-400 shrink-0">
+                      <User className="w-5 h-5" />
+                    </div>
                     <div>
                       <h4 className="text-sm font-bold text-zinc-100">{player.displayName}</h4>
                       <p className="text-xs text-zinc-400">{player.phoneNumber}</p>

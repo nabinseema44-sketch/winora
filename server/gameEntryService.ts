@@ -43,6 +43,51 @@ export interface ServerGameEntry {
 
 export const SERVER_GAMES_CONFIG = [
   {
+    id: 'hourly_play',
+    name: 'Hourly Play',
+    code: 'HP-80P',
+    subtitle: 'Every Hour 24×7 (IST) | 15-min Freeze | 80% Protection Refund',
+    payoutMultiplier: 90,
+    hasGreenRefund: true,
+    refundPercentage: 80,
+    description: 'Hourly draws every hour. Winning number pays 90×, plus an 80% protection refund on all bids matching the declared winning color (Green or Red)!',
+    accentColor: 'from-emerald-500 to-teal-500',
+    intervalMinutes: 60,
+  },
+  {
+    id: 'kalyan_morning',
+    name: 'Kalyan Morning',
+    code: 'KM-90',
+    subtitle: 'Close: 09:30 AM IST | Result: 11:30 AM IST (Closes 2 hr before)',
+    payoutMultiplier: 90,
+    hasGreenRefund: false,
+    description: 'Premier morning market. Closes strictly 2 hours before declaration.',
+    accentColor: 'from-amber-500 to-orange-500',
+    intervalMinutes: 120,
+  },
+  {
+    id: 'kalyan',
+    name: 'Kalyan',
+    code: 'KL-90',
+    subtitle: 'Close: 02:30 PM IST | Result: 04:30 PM IST (Closes 2 hr before)',
+    payoutMultiplier: 90,
+    hasGreenRefund: false,
+    description: 'Flagship afternoon market. Closes strictly 2 hours before declaration.',
+    accentColor: 'from-cyan-500 to-blue-500',
+    intervalMinutes: 120,
+  },
+  {
+    id: 'kalyan_night',
+    name: 'Kalyan Night',
+    code: 'KN-90',
+    subtitle: 'Close: 09:45 PM IST | Result: 11:45 PM IST (Closes 2 hr before)',
+    payoutMultiplier: 90,
+    hasGreenRefund: false,
+    description: 'Evening high-yield market. Closes strictly 2 hours before declaration.',
+    accentColor: 'from-purple-500 to-pink-500',
+    intervalMinutes: 120,
+  },
+  {
     id: 'game_x',
     name: 'Game X',
     code: 'GX-90',
@@ -124,9 +169,65 @@ class GameEntryService {
     const declareZ = new Date(now + 12 * 60000);
     const freezeZ = new Date(declareZ.getTime() - 15 * 60000);
 
-    // Round for Hourly Dhamaka: Draw in 35 mins, Freeze in 20 mins (OPEN)
-    const declareD = new Date(now + 35 * 60000);
-    const freezeD = new Date(declareD.getTime() - 15 * 60000);
+    // Round for Hourly Play: Freeze 15 mins before declaration
+    const declareH = new Date(now + 35 * 60000);
+    const freezeH = new Date(declareH.getTime() - 15 * 60000);
+
+    // Kalyan Morning: 2 hours cutoff before declaration
+    const declareKM = new Date(now + 150 * 60000);
+    const freezeKM = new Date(declareKM.getTime() - 120 * 60000); // 2 hours before!
+
+    // Kalyan: 2 hours cutoff before declaration
+    const declareKL = new Date(now + 180 * 60000);
+    const freezeKL = new Date(declareKL.getTime() - 120 * 60000); // 2 hours before!
+
+    // Kalyan Night: 2 hours cutoff before declaration
+    const declareKN = new Date(now + 210 * 60000);
+    const freezeKN = new Date(declareKN.getTime() - 120 * 60000); // 2 hours before!
+
+    this.rounds.set('hourly_play', {
+      id: 'round-hp-412',
+      gameId: 'hourly_play',
+      gameName: 'Hourly Play',
+      roundNumber: 412,
+      freezeTime: freezeH.toISOString(),
+      declareTime: declareH.toISOString(),
+      status: now >= freezeH.getTime() ? 'FROZEN' : 'OPEN',
+      totalBidsPool: 62400,
+    });
+
+    this.rounds.set('kalyan_morning', {
+      id: 'round-km-101',
+      gameId: 'kalyan_morning',
+      gameName: 'Kalyan Morning',
+      roundNumber: 101,
+      freezeTime: freezeKM.toISOString(),
+      declareTime: declareKM.toISOString(),
+      status: now >= freezeKM.getTime() ? 'FROZEN' : 'OPEN',
+      totalBidsPool: 28500,
+    });
+
+    this.rounds.set('kalyan', {
+      id: 'round-kl-204',
+      gameId: 'kalyan',
+      gameName: 'Kalyan',
+      roundNumber: 204,
+      freezeTime: freezeKL.toISOString(),
+      declareTime: declareKL.toISOString(),
+      status: now >= freezeKL.getTime() ? 'FROZEN' : 'OPEN',
+      totalBidsPool: 19200,
+    });
+
+    this.rounds.set('kalyan_night', {
+      id: 'round-kn-309',
+      gameId: 'kalyan_night',
+      gameName: 'Kalyan Night',
+      roundNumber: 309,
+      freezeTime: freezeKN.toISOString(),
+      declareTime: declareKN.toISOString(),
+      status: now >= freezeKN.getTime() ? 'FROZEN' : 'OPEN',
+      totalBidsPool: 44100,
+    });
 
     this.rounds.set('game_x', {
       id: 'round-gx-101',
@@ -166,8 +267,8 @@ class GameEntryService {
       gameId: 'hourly_dhamaka',
       gameName: 'Hourly Dhamaka',
       roundNumber: 412,
-      freezeTime: freezeD.toISOString(),
-      declareTime: declareD.toISOString(),
+      freezeTime: freezeH.toISOString(),
+      declareTime: declareH.toISOString(),
       status: 'OPEN',
       totalBidsPool: 62400,
     });

@@ -55,6 +55,14 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
   const [activeColor, setActiveColor] = useState<'GREEN' | 'RED'>('GREEN');
   const [defaultStake, setDefaultStake] = useState<number>(50);
   const [customStakeInput, setCustomStakeInput] = useState<string>('50');
+  const [colorTab, setColorTab] = useState<'ALL' | 'GREEN' | 'RED'>('ALL');
+
+  const isHourlyGame =
+    game.id === 'hourly_play' ||
+    game.id === 'hourly_dhamaka' ||
+    Boolean(game.hasHourlyProtection);
+
+  const isKalyanMarket = game.id.startsWith('kalyan');
 
   // Server-authoritative round data
   const [serverRound, setServerRound] = useState<ServerRoundInfo | null>(null);
@@ -178,6 +186,16 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
     return Array.from({ length: 100 }, (_, i) => i.toString().padStart(2, '0'));
   }, []);
 
+  // Filtered numbers based on active tab for Hourly Play
+  const displayedNumbers = useMemo(() => {
+    if (!isHourlyGame || colorTab === 'ALL') return allNumbers;
+    return allNumbers.filter((n) => {
+      const num = parseInt(n, 10);
+      const isEvenGreen = num % 2 === 0;
+      return colorTab === 'GREEN' ? isEvenGreen : !isEvenGreen;
+    });
+  }, [allNumbers, isHourlyGame, colorTab]);
+
   // Map of selections by number string for fast O(1) lookup
   const selectionMap = useMemo(() => {
     const map = new Map<string, SelectionPayload>();
@@ -185,11 +203,42 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
     return map;
   }, [selections]);
 
+  // Quick Pick Random numbers for Green or Red
+  const handleQuickPickRandom = (targetColor: 'GREEN' | 'RED', count: number) => {
+    if (isFrozen) return;
+    const candidates = allNumbers.filter((n) => {
+      const num = parseInt(n, 10);
+      const isEvenGreen = num % 2 === 0;
+      return targetColor === 'GREEN' ? isEvenGreen : !isEvenGreen;
+    });
+
+    const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+    setSelections((prev) => {
+      const currentMap = new Map(prev.map((s) => [s.number, s]));
+      for (const numStr of shuffled) {
+        if (!currentMap.has(numStr) && currentMap.size < 37 && count > 0) {
+          currentMap.set(numStr, {
+            number: numStr,
+            stake: defaultStake,
+            color: targetColor,
+          });
+          count--;
+        }
+      }
+      return Array.from(currentMap.values());
+    });
+  };
+
   // 4. Number Selection Toggle (Max 37 numbers rule)
-  // Step 13 Rules: A player can pick ANY number (00-99) and bid GREEN or RED on it.
   const handleToggleNumber = (numStr: string) => {
     if (isFrozen) return;
     setLimitWarning(null);
+
+    const num = parseInt(numStr, 10);
+    // In Hourly Play: Even number is GREEN, Odd number is RED!
+    const naturalColor: 'GREEN' | 'RED' = isHourlyGame
+      ? (num % 2 === 0 ? 'GREEN' : 'RED')
+      : activeColor;
 
     setSelections((prev) => {
       const exists = prev.find((s) => s.number === numStr);
@@ -207,7 +256,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
           {
             number: numStr,
             stake: defaultStake,
-            color: activeColor,
+            color: naturalColor,
           },
         ];
       }
@@ -493,19 +542,26 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
           <div className="bg-rose-500/15 border-b border-rose-500/30 px-4 py-2.5 flex items-center gap-2 text-xs text-rose-300 font-medium">
             <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
             <span>
-              <strong>Bidding Frozen:</strong> Cutoff occurs 15 minutes prior to draw time. The server has locked submissions for this round.
+              <strong>Bidding Frozen:</strong>{' '}
+              {isKalyanMarket
+                ? 'Kalyan markets close strictly 2 hours prior to result declaration. Submissions are now locked.'
+                : 'Cutoff occurs 15 minutes prior to draw time. The server has locked submissions for this round.'}
             </span>
           </div>
         ) : (
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex items-center justify-between text-xs text-amber-300/90 font-medium">
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs text-amber-300/90 font-medium">
             <span className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-amber-400" />
-              15-minute freeze cutoff enforced. Submissions open until cutoff time.
+              <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              {isKalyanMarket
+                ? 'Market closes strictly 2 hours before declaration. Indian Standard Time enforced.'
+                : '15-minute freeze cutoff enforced. Draw declares every hour.'}
             </span>
-            <span className="text-emerald-400 font-bold flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              80% Matching Color Protection Refund
-            </span>
+            {isHourlyGame && (
+              <span className="text-emerald-400 font-bold flex items-center gap-1 text-[11px]">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                80% Refund: Green result refunds Green bids • Red result refunds Red bids
+              </span>
+            )}
           </div>
         )}
 
@@ -705,23 +761,118 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
             )}
 
             {/* ================================================================ */}
-            {/* 00–99 NUMBER BOARD (10x10 GRID) */}
-            {/* Each cell shows number. If selected, shows color badge & stake */}
+            {/* 00–99 NUMBER BOARD (SIMPLIFIED GREEN & RED VIEW FOR HOURLY PLAY) */}
             {/* ================================================================ */}
-            <div className="bg-zinc-950 p-2.5 sm:p-3 rounded-2xl border border-zinc-800">
-              <div className="flex items-center justify-between mb-2 px-1">
-                <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">
-                  00–99 Number Board (Tap to toggle selection)
-                </span>
-                <span className="text-[11px] text-zinc-400">
-                  New numbers added as <strong className={activeColor === 'GREEN' ? 'text-emerald-400' : 'text-rose-400'}>{activeColor}</strong> @ ₹{defaultStake}
-                </span>
+            <div className="bg-zinc-950 p-2.5 sm:p-3 rounded-2xl border border-zinc-800 space-y-3">
+              {/* Header with Game Context */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
+                <div>
+                  <span className="text-xs font-bold text-zinc-200 uppercase tracking-wider block">
+                    {isHourlyGame ? 'Hourly Play Number Board' : '00–99 Number Board (Tap to toggle)'}
+                  </span>
+                  {isHourlyGame ? (
+                    <span className="text-[11px] text-zinc-400">
+                      Even numbers are <strong className="text-emerald-400">GREEN</strong> (00, 02..98) • Odd numbers are <strong className="text-rose-400">RED</strong> (01, 03..99)
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-zinc-400">
+                      Tap any number to add with default stake ₹{defaultStake}
+                    </span>
+                  )}
+                </div>
+
+                {/* Quick Tabs for Hourly Play */}
+                {isHourlyGame && (
+                  <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-xl border border-zinc-800 self-start sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setColorTab('ALL')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        colorTab === 'ALL'
+                          ? 'bg-amber-500 text-zinc-950 shadow-sm'
+                          : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      All (100)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setColorTab('GREEN')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        colorTab === 'GREEN'
+                          ? 'bg-emerald-500 text-zinc-950 shadow-sm'
+                          : 'text-emerald-400 hover:text-emerald-300'
+                      }`}
+                    >
+                      <span>🟢 Green (50)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setColorTab('RED')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        colorTab === 'RED'
+                          ? 'bg-rose-500 text-zinc-950 shadow-sm'
+                          : 'text-rose-400 hover:text-rose-300'
+                      }`}
+                    >
+                      <span>🔴 Red (50)</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-10 gap-1 sm:gap-1.5 p-1 bg-zinc-900/50 rounded-xl border border-zinc-800/80">
-                {allNumbers.map((numStr) => {
+              {/* Hourly Play Quick Pick Row & Protection Rule Reminder */}
+              {isHourlyGame && (
+                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-2.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-zinc-400 uppercase">Quick Pick:</span>
+                    <button
+                      type="button"
+                      disabled={isFrozen}
+                      onClick={() => handleQuickPickRandom('GREEN', 5)}
+                      className="px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold hover:bg-emerald-500/25 transition-all text-xs cursor-pointer disabled:opacity-50"
+                    >
+                      +5 Green
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isFrozen}
+                      onClick={() => handleQuickPickRandom('GREEN', 10)}
+                      className="px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold hover:bg-emerald-500/25 transition-all text-xs cursor-pointer disabled:opacity-50"
+                    >
+                      +10 Green
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isFrozen}
+                      onClick={() => handleQuickPickRandom('RED', 5)}
+                      className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 font-bold hover:bg-rose-500/25 transition-all text-xs cursor-pointer disabled:opacity-50"
+                    >
+                      +5 Red
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isFrozen}
+                      onClick={() => handleQuickPickRandom('RED', 10)}
+                      className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 font-bold hover:bg-rose-500/25 transition-all text-xs cursor-pointer disabled:opacity-50"
+                    >
+                      +10 Red
+                    </button>
+                  </div>
+
+                  <div className="text-[11px] text-zinc-400">
+                    <span className="text-amber-400 font-bold">Rule:</span> 80% refund if declared number matches your bid color.
+                  </div>
+                </div>
+              )}
+
+              {/* Number Grid */}
+              <div className="grid grid-cols-5 sm:grid-cols-10 gap-1 sm:gap-1.5 p-1.5 bg-zinc-900/50 rounded-xl border border-zinc-800/80">
+                {displayedNumbers.map((numStr) => {
                   const sel = selectionMap.get(numStr);
                   const isSelected = Boolean(sel);
+                  const numVal = parseInt(numStr, 10);
+                  const isEven = numVal % 2 === 0;
 
                   return (
                     <button
@@ -730,17 +881,26 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                       id={`number-cell-${numStr}`}
                       disabled={isFrozen}
                       onClick={() => handleToggleNumber(numStr)}
-                      className={`relative aspect-square rounded-lg flex flex-col items-center justify-center transition-all cursor-pointer select-none active:scale-95 disabled:cursor-not-allowed ${
+                      className={`relative aspect-square rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer select-none active:scale-95 disabled:cursor-not-allowed ${
                         isSelected
                           ? sel?.color === 'GREEN'
-                            ? 'bg-emerald-500 text-zinc-950 font-black shadow-md ring-2 ring-emerald-300 z-10'
-                            : 'bg-rose-500 text-zinc-950 font-black shadow-md ring-2 ring-rose-300 z-10'
-                          : 'bg-zinc-850 text-zinc-200 border border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800'
+                            ? 'bg-emerald-500 text-zinc-950 font-black shadow-lg ring-2 ring-emerald-300 z-10'
+                            : 'bg-rose-500 text-zinc-950 font-black shadow-lg ring-2 ring-rose-300 z-10'
+                          : isHourlyGame
+                            ? isEven
+                              ? 'bg-emerald-950/20 text-emerald-200 border border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-900/40'
+                              : 'bg-rose-950/20 text-rose-200 border border-rose-500/30 hover:border-rose-400 hover:bg-rose-900/40'
+                            : 'bg-zinc-850 text-zinc-200 border border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800'
                       } ${isFrozen ? 'opacity-40' : ''}`}
                     >
                       <span className="font-mono text-xs sm:text-sm font-bold leading-none">
                         {numStr}
                       </span>
+                      {isHourlyGame && !isSelected && (
+                        <span className={`text-[9px] font-black leading-none mt-0.5 ${isEven ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {isEven ? 'GRN' : 'RED'}
+                        </span>
+                      )}
                       {isSelected && sel && (
                         <span className="text-[8px] sm:text-[9px] font-black leading-none mt-0.5 opacity-90">
                           ₹{sel.stake}

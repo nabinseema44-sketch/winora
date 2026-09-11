@@ -91,19 +91,19 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
             <span>WINORA Official Game Matrix</span>
           </div>
           <h1 className="font-display text-2xl sm:text-3xl font-black text-zinc-100">
-            00–99 Multi-Number Draws
+            00–99 Multi-Number Draws (IST Schedule)
           </h1>
           <p className="text-xs text-zinc-400 mt-1 max-w-xl">
-            Fixed 90× single-number payouts on Games X, Y, Z, plus Hourly Dhamaka featuring an automatic 80% Green Protection Refund on non-winning green bids.
+            90× single-number payouts. Hourly Play features draws every hour with 15-min freeze and 80% matching color refund. Kalyan markets close strictly 2 hours before declaration.
           </p>
         </div>
 
-        {/* 15-Minute Rule Badge */}
+        {/* Schedule Badge */}
         <div className="bg-zinc-950 border border-amber-500/30 p-3 rounded-xl flex items-center gap-3">
           <Clock className="w-5 h-5 text-amber-400 shrink-0" />
           <div className="text-xs">
-            <span className="text-zinc-200 font-bold block">15-Minute Freeze Enforced</span>
-            <span className="text-zinc-400 text-[11px]">Bidding closes 15 mins prior to result</span>
+            <span className="text-zinc-200 font-bold block">Indian Standard Time (IST)</span>
+            <span className="text-zinc-400 text-[11px]">Kalyan closes 2h before • Hourly freezes 15m before</span>
           </div>
         </div>
       </div>
@@ -214,12 +214,12 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
                     </div>
                   </div>
 
-                  {/* Special Hourly Dhamaka Highlight */}
-                  {game.hasGreenRefund && (
+                  {/* Special Hourly Play Color Refund Highlight */}
+                  {(game.hasGreenRefund || game.hasHourlyProtection) && (
                     <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-2.5 flex items-center gap-2 text-xs text-emerald-300">
                       <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                       <span>
-                        <strong>80% Green Protection:</strong> 50 Green numbers (00–49) automatically refund 80% of stake if non-winning!
+                        <strong>80% Color Refund:</strong> If declared winning number is Green, all Green bids get 80% refund. If Red, all Red bids get 80% refund!
                       </span>
                     </div>
                   )}
