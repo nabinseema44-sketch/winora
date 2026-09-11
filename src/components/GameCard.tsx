@@ -49,7 +49,7 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onSelect }) => {
     <div
       id={`game-card-${game.id}`}
       onClick={() => onSelect(game)}
-      className="group relative flex flex-col justify-between bg-zinc-900/90 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md hover:-translate-y-0.5 overflow-hidden"
+      className="group relative flex flex-col justify-between bg-zinc-900/90 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-3.5 sm:p-4 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md active:scale-[0.98] select-none touch-manipulation overflow-hidden"
     >
       {/* Background ambient gradient glow */}
       <div

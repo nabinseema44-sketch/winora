@@ -117,81 +117,81 @@ export const CoinWalletPanel: React.FC<Props> = ({ user, onToast }) => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-16">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 pb-16 px-2.5 sm:px-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.2em] text-amber-400 font-bold">Virtual Coin Wallet</p>
-          <h1 className="text-2xl sm:text-3xl font-black text-white mt-1">{roleLabel(role)} Wallet</h1>
-          <p className="text-xs text-zinc-400 mt-1">Master → Agent → Player coin flow. No payment gateway is connected.</p>
+          <p className="text-[10px] sm:text-[11px] uppercase tracking-[0.2em] text-amber-400 font-bold">Virtual Coin Wallet</p>
+          <h1 className="text-xl sm:text-3xl font-black text-white mt-0.5">{roleLabel(role)} Wallet</h1>
+          <p className="text-[11px] sm:text-xs text-zinc-400 mt-0.5">Master → Agent → Player coin flow. No payment gateway is connected.</p>
         </div>
-        <button onClick={load} disabled={loading} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-200 hover:border-amber-500/40">
+        <button onClick={load} disabled={loading} className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-200 hover:border-amber-500/40 min-h-[40px] cursor-pointer active:scale-95">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
         </button>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-500/15 via-zinc-900 to-zinc-950 p-6">
+      <div className="grid md:grid-cols-3 gap-3 sm:gap-4">
+        <div className="md:col-span-2 rounded-2xl sm:rounded-3xl border border-amber-500/20 bg-gradient-to-br from-amber-500/15 via-zinc-900 to-zinc-950 p-4 sm:p-6">
           <div className="flex items-center gap-2 text-amber-300 text-xs font-bold"><WalletCards className="w-4 h-4" /> MAIN WALLET</div>
-          <div className="text-4xl sm:text-5xl font-black text-white mt-4">{balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+          <div className="text-3xl sm:text-5xl font-black text-white mt-2 sm:mt-4 truncate">{balance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
           <div className="text-xs text-zinc-400 mt-1">COIN</div>
-          <div className="mt-5 flex items-center gap-2 text-[11px] text-emerald-300"><ShieldCheck className="w-4 h-4" /> Balance is changed only by the server ledger.</div>
+          <div className="mt-4 sm:mt-5 flex items-center gap-1.5 text-[11px] text-emerald-300"><ShieldCheck className="w-4 h-4 shrink-0" /> Balance is changed only by the server ledger.</div>
         </div>
-        <div className="rounded-3xl border border-zinc-800 bg-zinc-900/80 p-5">
+        <div className="rounded-2xl sm:rounded-3xl border border-zinc-800 bg-zinc-900/80 p-4 sm:p-5">
           <p className="text-[10px] uppercase tracking-wider text-zinc-500">Your UID</p>
-          <p className="text-xs font-mono text-zinc-200 break-all mt-2">{user.id}</p>
-          <button onClick={copyUid} className="mt-4 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-800 text-xs font-bold text-zinc-200 hover:bg-zinc-700"><Copy className="w-3.5 h-3.5" /> Copy UID</button>
-          {user.assignedAgentId && <p className="text-[11px] text-zinc-500 mt-4">Assigned Agent: <span className="text-zinc-300">{user.assignedAgentId}</span></p>}
+          <p className="text-xs font-mono text-zinc-200 break-all mt-1">{user.id}</p>
+          <button onClick={copyUid} className="mt-3 inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-800 text-xs font-bold text-zinc-200 hover:bg-zinc-700 min-h-[38px] cursor-pointer active:scale-95"><Copy className="w-3.5 h-3.5" /> Copy UID</button>
+          {user.assignedAgentId && <p className="text-[11px] text-zinc-500 mt-3">Assigned Agent: <span className="text-zinc-300">{user.assignedAgentId}</span></p>}
         </div>
       </div>
 
       {instructions?.enabled && instructions.url && (
-        <div className="rounded-3xl border border-blue-500/20 bg-blue-500/5 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="rounded-2xl sm:rounded-3xl border border-blue-500/20 bg-blue-500/5 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-blue-300 font-bold text-sm"><Link2 className="w-4 h-4" /> {instructions.title}</div>
             <p className="text-xs text-zinc-400 mt-1">{instructions.message}</p>
           </div>
-          <a href={instructions.url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 text-white text-xs font-bold hover:bg-blue-400">
+          <a href={instructions.url} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-500 text-white text-xs font-bold hover:bg-blue-400 min-h-[40px]">
             Open Master Link <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>
       )}
 
-      <div className="grid lg:grid-cols-2 gap-5">
-        <form onSubmit={submitTransfer} className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 space-y-4">
+      <div className="grid lg:grid-cols-2 gap-4 sm:gap-5">
+        <form onSubmit={submitTransfer} className="rounded-2xl sm:rounded-3xl border border-zinc-800 bg-zinc-900/70 p-4 sm:p-6 space-y-3.5 sm:space-y-4">
           <div className="flex items-center gap-2"><Send className="w-4 h-4 text-amber-400" /><h2 className="font-bold text-white">{actionLabel}</h2></div>
           <p className="text-[11px] text-zinc-500">The server checks your role and the permitted Master/Agent/Player direction before moving coins.</p>
           <div>
             <label className="text-[11px] text-zinc-400">{targetLabel}</label>
-            <input value={recipientUid} onChange={e => setRecipientUid(e.target.value)} className="mt-1 w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-3 text-xs text-white outline-none focus:border-amber-500" placeholder="Paste user UID" />
+            <input value={recipientUid} onChange={e => setRecipientUid(e.target.value)} className="mt-1 w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500" placeholder="Paste user UID" />
           </div>
           <div>
             <label className="text-[11px] text-zinc-400">Coin amount</label>
-            <input value={amount} onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" className="mt-1 w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-3 text-sm text-white outline-none focus:border-amber-500" />
+            <input value={amount} onChange={e => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" className="mt-1 w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-amber-500" />
           </div>
           <div>
             <label className="text-[11px] text-zinc-400">Note (optional)</label>
-            <input value={note} onChange={e => setNote(e.target.value)} maxLength={200} className="mt-1 w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-3 text-xs text-white outline-none focus:border-amber-500" placeholder="Reason / reference" />
+            <input value={note} onChange={e => setNote(e.target.value)} maxLength={200} className="mt-1 w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-amber-500" placeholder="Reason / reference" />
           </div>
-          <button disabled={busy || loading} className="w-full rounded-xl py-3.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-zinc-950 font-black text-sm inline-flex items-center justify-center gap-2">
+          <button disabled={busy || loading} className="w-full min-h-[44px] rounded-xl py-3 bg-amber-500 active:bg-amber-400 disabled:opacity-50 text-zinc-950 font-black text-xs sm:text-sm inline-flex items-center justify-center gap-2 cursor-pointer active:scale-98 transition-all">
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUpRight className="w-4 h-4" />} {actionLabel}
           </button>
         </form>
 
         {role === 'master' ? (
-          <form onSubmit={updateMasterInstructions} className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 space-y-4">
+          <form onSubmit={updateMasterInstructions} className="rounded-2xl sm:rounded-3xl border border-zinc-800 bg-zinc-900/70 p-4 sm:p-6 space-y-3.5 sm:space-y-4">
             <div className="flex items-center gap-2"><Link2 className="w-4 h-4 text-blue-400" /><h2 className="font-bold text-white">Master Coin Instructions</h2></div>
             <p className="text-[11px] text-zinc-500">This is an informational HTTPS link only. It does not process payments.</p>
-            <input value={masterLink} onChange={e => setMasterLink(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-3 text-xs text-white outline-none focus:border-blue-500" placeholder="https://example.com/coin-instructions" />
-            <textarea value={masterMessage} onChange={e => setMasterMessage(e.target.value)} maxLength={500} rows={4} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-3 text-xs text-white outline-none focus:border-blue-500" />
-            <button disabled={busy} className="w-full rounded-xl py-3 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 text-white font-black text-xs">Save Master Link</button>
+            <input value={masterLink} onChange={e => setMasterLink(e.target.value)} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-blue-500" placeholder="https://example.com/coin-instructions" />
+            <textarea value={masterMessage} onChange={e => setMasterMessage(e.target.value)} maxLength={500} rows={4} className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-blue-500" />
+            <button disabled={busy} className="w-full min-h-[44px] rounded-xl py-2.5 bg-blue-500 active:bg-blue-400 disabled:opacity-50 text-white font-black text-xs cursor-pointer">Save Master Link</button>
           </form>
         ) : (
-          <div className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6">
+          <div className="rounded-2xl sm:rounded-3xl border border-zinc-800 bg-zinc-900/70 p-4 sm:p-6">
             <div className="flex items-center gap-2 text-emerald-300"><ArrowDownLeft className="w-4 h-4" /><h2 className="font-bold text-white">How coins move</h2></div>
-            <div className="mt-5 space-y-3 text-xs text-zinc-400">
-              <div className="rounded-xl bg-zinc-950 p-3"><b className="text-zinc-200">Deposit:</b> Agent transfers coins to your UID.</div>
-              <div className="rounded-xl bg-zinc-950 p-3"><b className="text-zinc-200">Withdraw:</b> You transfer coins to your assigned Agent UID.</div>
-              <div className="rounded-xl bg-zinc-950 p-3"><b className="text-zinc-200">No gateway:</b> WINORA does not automatically charge or pay money in this prototype.</div>
+            <div className="mt-3.5 sm:mt-5 space-y-2.5 sm:space-y-3 text-xs text-zinc-400">
+              <div className="rounded-xl bg-zinc-950 p-2.5 sm:p-3"><b className="text-zinc-200">Deposit:</b> Agent transfers coins to your UID.</div>
+              <div className="rounded-xl bg-zinc-950 p-2.5 sm:p-3"><b className="text-zinc-200">Withdraw:</b> You transfer coins to your assigned Agent UID.</div>
+              <div className="rounded-xl bg-zinc-950 p-2.5 sm:p-3"><b className="text-zinc-200">No gateway:</b> WINORA does not automatically charge or pay money in this prototype.</div>
             </div>
           </div>
         )}

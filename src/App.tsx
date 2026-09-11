@@ -112,15 +112,15 @@ export default function App() {
       />
 
       {toastMessage && (
-        <div className="fixed top-20 right-4 z-50 animate-in fade-in slide-in-from-top-3 duration-200">
-          <div className="bg-zinc-900 border border-amber-500/50 text-zinc-100 px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs sm:text-sm">
+        <div className="fixed top-14 sm:top-16 inset-x-3 sm:inset-x-auto sm:right-4 z-50 animate-in fade-in slide-in-from-top-3 duration-200 pointer-events-none flex justify-center">
+          <div className="bg-zinc-900/95 backdrop-blur-md border border-amber-500/60 text-zinc-100 px-3.5 py-2.5 rounded-xl shadow-2xl flex items-center gap-2 text-xs sm:text-sm font-semibold max-w-sm w-full">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="font-medium">{toastMessage}</span>
+            <span className="truncate">{toastMessage}</span>
           </div>
         </div>
       )}
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
+      <main className="flex-1 w-full max-w-2xl mx-auto px-2.5 sm:px-4 py-3 sm:py-5 pb-24 sm:pb-28">
         {currentPage === 'home' && (
           <HomePage
             games={games}
@@ -141,15 +141,15 @@ export default function App() {
         {currentPage === 'register' && <RegisterPage onRegisterSuccess={() => { setCurrentPage('games'); showToast('Welcome to WINORA!'); }} onNavigate={handleNavigate} />}
       </main>
 
-      <footer className="border-t border-zinc-800/80 bg-zinc-950 py-8 px-4 text-xs text-zinc-400 mb-14 md:mb-0">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
-          <div className="flex items-center gap-3"><Logo size="sm" /><span className="text-[11px] text-zinc-400">WINORA System • Virtual Coin Wallet • 90× Game Engine</span></div>
-          <div className="flex items-center gap-2 text-zinc-400 text-[11px]"><Shield className="w-3.5 h-3.5 text-emerald-400" /><span>Server-authoritative ledger • Master → Agent → Player</span></div>
-          <button onClick={() => setShowSqlModal(true)} className="text-[11px] text-zinc-400 hover:text-amber-400 underline cursor-pointer">Database Schema</button>
+      <footer className="border-t border-zinc-900 bg-zinc-950 py-4 px-3 text-[11px] text-zinc-500 mb-16 select-none">
+        <div className="max-w-md mx-auto flex flex-col items-center justify-center gap-2 text-center">
+          <div className="flex items-center gap-2"><Logo size="sm" /><span className="text-[10px] text-zinc-500">Virtual Coin Wallet • 90× Game Matrix</span></div>
+          <div className="flex items-center gap-1.5 text-[10px] text-zinc-400"><Shield className="w-3 h-3 text-emerald-400" /><span>Server-Authoritative Ledger • IST Schedule</span></div>
+          <button onClick={() => setShowSqlModal(true)} className="text-[10px] text-zinc-500 hover:text-amber-400 underline cursor-pointer py-1">View Database Schema</button>
         </div>
       </footer>
 
-      <BottomNav currentPage={currentPage} onNavigate={handleNavigate} />
+      <BottomNav currentPage={currentPage} onNavigate={handleNavigate} user={user} />
       <GamePreviewModal game={selectedGame} onClose={() => setSelectedGame(null)} />
       {activeBiddingGame && (
         <GameBoardModal

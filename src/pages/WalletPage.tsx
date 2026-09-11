@@ -184,20 +184,20 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
   const playerLedger = ledgerEntries.filter((l) => l.userId === currentUser.id);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-5xl mx-auto px-2.5 sm:px-4 py-3 sm:py-6 space-y-4 sm:space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[10px] uppercase font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+            <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Integer Paise Backend-Authoritative
             </span>
           </div>
-          <h1 className="font-display text-2xl sm:text-3xl font-black text-zinc-100">
+          <h1 className="font-display text-xl sm:text-3xl font-black text-zinc-100">
             Authoritative Money Wallet
           </h1>
-          <p className="text-xs text-zinc-400 mt-0.5">
+          <p className="text-[11px] sm:text-xs text-zinc-400 mt-0.5">
             Strict separation of Withdrawable Balance and Bonus Balance with an immutable transaction ledger.
           </p>
         </div>
@@ -205,7 +205,7 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveTab('ledger')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-semibold text-zinc-300 hover:text-amber-400 hover:border-zinc-700 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-semibold text-zinc-300 hover:text-amber-400 hover:border-zinc-700 transition-colors cursor-pointer min-h-[38px]"
           >
             <FileText className="w-3.5 h-3.5 text-amber-400" />
             <span>Immutable Ledger</span>
@@ -214,10 +214,10 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
       </div>
 
       {/* Main Dual Balance Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         {/* Card 1: Withdrawable Balance */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border border-emerald-500/30 p-6 shadow-xl">
-          <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border border-emerald-500/30 p-3.5 sm:p-6 shadow-xl">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
             <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
               Withdrawable Balance
@@ -227,30 +227,30 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
             </span>
           </div>
 
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="font-display text-4xl sm:text-5xl font-black text-zinc-100 tabular-nums">
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="font-display text-2xl sm:text-4xl md:text-5xl font-black text-zinc-100 tabular-nums">
               {formatPaise(withdrawablePaise)}
             </span>
-            <span className="text-xs font-mono text-zinc-500">
+            <span className="text-[10px] sm:text-xs font-mono text-zinc-500 truncate">
               ({withdrawablePaise.toLocaleString()} paise)
             </span>
           </div>
 
-          <p className="text-xs text-zinc-400 mt-3 flex items-center gap-1.5">
+          <p className="text-[11px] sm:text-xs text-zinc-400 mt-2 flex items-center gap-1.5 leading-snug">
             <span>Authoritative funds available for game bidding and instant withdrawal requests.</span>
           </p>
 
-          <div className="mt-5 flex gap-2">
+          <div className="mt-4 flex gap-2">
             <button
               onClick={() => setActiveTab('deposit')}
-              className="flex-1 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 min-h-[44px] py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
             >
               <ArrowDownLeft className="w-4 h-4 stroke-[2.5]" />
               <span>Deposit</span>
             </button>
             <button
               onClick={() => setActiveTab('withdrawal')}
-              className="flex-1 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="flex-1 min-h-[44px] py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
             >
               <ArrowUpRight className="w-4 h-4 stroke-[2.5] text-amber-400" />
               <span>Withdraw</span>
@@ -259,8 +259,8 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
         </div>
 
         {/* Card 2: Bonus Balance (Non-Withdrawable) */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border border-amber-500/30 p-6 shadow-xl">
-          <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-950 border border-amber-500/30 p-3.5 sm:p-6 shadow-xl">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
             <span className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
               <Lock className="w-4 h-4 text-amber-400" />
               Bonus Balance (Non-Withdrawable)
@@ -270,16 +270,16 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
             </span>
           </div>
 
-          <div className="flex items-baseline gap-2 mt-2">
-            <span className="font-display text-4xl sm:text-5xl font-black text-amber-300 tabular-nums">
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="font-display text-2xl sm:text-4xl md:text-5xl font-black text-amber-300 tabular-nums">
               {formatPaise(bonusPaise)}
             </span>
-            <span className="text-xs font-mono text-zinc-500">
+            <span className="text-[10px] sm:text-xs font-mono text-zinc-500 truncate">
               ({bonusPaise.toLocaleString()} paise)
             </span>
           </div>
 
-          <p className="text-xs text-amber-200/80 mt-3 flex items-start gap-1.5 leading-relaxed">
+          <p className="text-[11px] sm:text-xs text-amber-200/80 mt-2 flex items-start gap-1.5 leading-snug">
             <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
             <span>
               Credited from 80% Hourly Protection refunds & promotions. <strong>Never withdrawable</strong> per Master Blueprint rules.
@@ -287,7 +287,7 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
           </p>
 
           {isAgent && (
-            <div className="mt-4 pt-3 border-t border-zinc-800 flex items-center justify-between text-xs">
+            <div className="mt-3 pt-2.5 border-t border-zinc-800 flex items-center justify-between text-xs">
               <span className="text-purple-300 font-semibold">Agent Commission Balance:</span>
               <span className="font-mono font-bold text-purple-400">{formatPaise(commPaise)}</span>
             </div>
@@ -296,31 +296,31 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
       </div>
 
       {/* Navigation Tab Bar */}
-      <div className="flex border-b border-zinc-800 gap-2 pb-1 overflow-x-auto text-xs font-bold">
+      <div className="flex border-b border-zinc-800 gap-1.5 pb-1 overflow-x-auto text-xs font-bold scrollbar-none no-scrollbar -mx-2.5 px-2.5 sm:mx-0 sm:px-0">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 min-h-[38px] ${
             activeTab === 'overview'
               ? 'bg-amber-500 text-zinc-950 shadow'
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
           }`}
         >
-          <Wallet className="w-4 h-4" />
-          <span>Wallet Overview</span>
+          <Wallet className="w-3.5 h-3.5" />
+          <span>Overview</span>
         </button>
 
         <button
           onClick={() => setActiveTab('deposit')}
-          className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 min-h-[38px] ${
             activeTab === 'deposit'
               ? 'bg-amber-500 text-zinc-950 shadow'
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
           }`}
         >
-          <ArrowDownLeft className="w-4 h-4" />
-          <span>Manual Deposit (UTR)</span>
+          <ArrowDownLeft className="w-3.5 h-3.5" />
+          <span>Deposit</span>
           {playerDeposits.filter((d) => d.status === 'PENDING').length > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-400 text-zinc-950 font-black">
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-400 text-zinc-950 font-black">
               {playerDeposits.filter((d) => d.status === 'PENDING').length}
             </span>
           )}
@@ -328,38 +328,38 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
 
         <button
           onClick={() => setActiveTab('withdrawal')}
-          className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 min-h-[38px] ${
             activeTab === 'withdrawal'
               ? 'bg-amber-500 text-zinc-950 shadow'
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
           }`}
         >
-          <ArrowUpRight className="w-4 h-4" />
-          <span>Withdrawal Request</span>
+          <ArrowUpRight className="w-3.5 h-3.5" />
+          <span>Withdrawal</span>
         </button>
 
         <button
           onClick={() => setActiveTab('ledger')}
-          className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 min-h-[38px] ${
             activeTab === 'ledger'
               ? 'bg-amber-500 text-zinc-950 shadow'
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
           }`}
         >
-          <FileText className="w-4 h-4" />
-          <span>Immutable Ledger</span>
+          <FileText className="w-3.5 h-3.5" />
+          <span>Ledger</span>
         </button>
 
         <button
           onClick={() => setActiveTab('referrals')}
-          className={`px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+          className={`px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap shrink-0 min-h-[38px] ${
             activeTab === 'referrals'
               ? 'bg-amber-500 text-zinc-950 shadow'
               : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
           }`}
         >
-          <Award className="w-4 h-4" />
-          <span>Referral System</span>
+          <Award className="w-3.5 h-3.5" />
+          <span>Referrals</span>
         </button>
       </div>
 
@@ -554,13 +554,13 @@ export const WalletPage: React.FC<WalletPageProps> = ({ user: initialUser, onNav
                   </div>
 
                   {/* Preset amounts */}
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex flex-wrap gap-1.5 mt-2">
                     {presetDeposits.map((amt) => (
                       <button
                         key={amt}
                         type="button"
                         onClick={() => setDepositAmountRupees(amt.toString())}
-                        className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px] font-bold text-zinc-300"
+                        className="px-3 py-1.5 rounded-lg bg-zinc-800 active:bg-zinc-700 text-xs font-bold text-zinc-300 min-h-[36px] cursor-pointer"
                       >
                         ₹{amt}
                       </button>

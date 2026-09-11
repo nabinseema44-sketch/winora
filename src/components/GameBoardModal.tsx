@@ -451,45 +451,45 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
   return (
     <div
       id="game-board-modal-backdrop"
-      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto"
     >
       <div
         id="game-board-modal-container"
-        className="relative w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[95vh]"
+        className="relative w-full max-w-4xl bg-zinc-900 border-0 sm:border border-zinc-800 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden h-[100dvh] sm:h-auto sm:max-h-[95vh]"
       >
         {/* ================================================================ */}
         {/* MODAL HEADER: Title, Timer, Balance & Close                      */}
         {/* ================================================================ */}
-        <div className="p-3.5 sm:p-4 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <Sparkles className="w-5 h-5 text-amber-400" />
+        <div className="p-2.5 sm:p-4 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between gap-2 shrink-0 pt-safe">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="font-display font-black text-sm sm:text-base text-zinc-100 truncate">
+              <div className="flex items-center gap-1.5">
+                <h2 className="font-display font-black text-xs sm:text-base text-zinc-100 truncate">
                   {game.name}
                 </h2>
-                <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0">
-                  90× Return
+                <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 leading-none">
+                  90×
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-400 truncate">
-                Round #{serverRound?.roundNumber || initialRound.roundNumber} • Select any number & amount
+              <p className="text-[10px] sm:text-[11px] text-zinc-400 truncate">
+                Round #{serverRound?.roundNumber || initialRound.roundNumber} • 00–99
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Live Timer */}
             <div
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold ${
+              className={`flex items-center gap-1 px-2 sm:px-3 py-1 rounded-xl border text-xs font-bold ${
                 isFrozen
                   ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse'
                   : 'bg-zinc-900 text-zinc-200 border-zinc-800'
               }`}
             >
-              <Clock className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-amber-400" />
               <span className="font-mono text-xs sm:text-sm font-black">{timeLeftStr || '00:00'}</span>
             </div>
 
@@ -497,20 +497,21 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveView(activeView === 'my-entries' ? 'board' : 'my-entries')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer flex items-center gap-1 min-h-[34px] ${
                 activeView === 'my-entries'
                   ? 'bg-amber-500 text-zinc-950 border-amber-400 font-black'
                   : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:text-zinc-100'
               }`}
+              title="My Bids"
             >
               <FileText className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">My Bids</span>
+              <span className="text-[11px]">Bids</span>
             </button>
 
             {/* Close */}
             <button
               onClick={onClose}
-              className="text-zinc-400 hover:text-zinc-100 p-1.5 rounded-xl hover:bg-zinc-800 transition-colors cursor-pointer"
+              className="text-zinc-400 hover:text-zinc-100 p-1.5 rounded-xl hover:bg-zinc-800 active:scale-95 transition-all cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center"
               title="Close panel"
             >
               <X className="w-5 h-5" />
@@ -520,25 +521,25 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
 
         {/* Global Error Notice */}
         {errorMessage && (
-          <div className="bg-rose-950/70 border-b border-rose-500/40 px-4 py-2 flex items-center justify-between text-xs text-rose-300">
-            <div className="flex items-center gap-2">
+          <div className="bg-rose-950/80 border-b border-rose-500/40 px-3 py-2 flex items-center justify-between text-xs text-rose-300 shrink-0">
+            <div className="flex items-center gap-1.5 min-w-0">
               <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{errorMessage}</span>
+              <span className="truncate">{errorMessage}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0 ml-2">
               {hasInsufficientCredits && (
                 <button
                   type="button"
                   onClick={handleAddDemoCoins}
-                  className="px-2 py-0.5 rounded bg-emerald-500 text-zinc-950 font-bold hover:bg-emerald-400 cursor-pointer"
+                  className="px-2 py-0.5 rounded bg-emerald-500 text-zinc-950 font-bold hover:bg-emerald-400 cursor-pointer text-[10px]"
                 >
-                  + Add ₹1,000 Coins
+                  + Add ₹1,000
                 </button>
               )}
               <button
                 type="button"
                 onClick={() => setErrorMessage(null)}
-                className="text-rose-300 hover:text-zinc-100 cursor-pointer"
+                className="text-rose-300 hover:text-zinc-100 cursor-pointer p-1"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -548,9 +549,9 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
 
         {/* Freeze Notice */}
         {isFrozen && (
-          <div className="bg-rose-500/15 border-b border-rose-500/30 px-4 py-2 flex items-center gap-2 text-xs text-rose-300 font-bold">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
-            <span>Bidding is currently FROZEN for this round. Bids will unlock for the next round.</span>
+          <div className="bg-rose-500/15 border-b border-rose-500/30 px-3 py-1.5 flex items-center gap-2 text-[11px] sm:text-xs text-rose-300 font-bold shrink-0">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+            <span>Bidding is currently FROZEN for this round (15-min cutoff).</span>
           </div>
         )}
 
@@ -558,14 +559,14 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
         {/* VIEW 1: SIMPLIFIED GAME BOARD (ANY AMOUNT, ANY NUMBER)           */}
         {/* ================================================================ */}
         {activeView === 'board' && (
-          <div className="p-3 sm:p-4 overflow-y-auto space-y-3.5 flex-1">
+          <div className="p-2 sm:p-4 overflow-y-auto space-y-2.5 flex-1 overscroll-contain">
             {/* 1. TOP CONTROLS BAR: Wallet Balance & Quick Top-Up */}
-            <div className="bg-zinc-950 p-2.5 sm:p-3 rounded-2xl border border-zinc-800 flex flex-wrap items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800">
-                  <Coins className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs text-zinc-400 font-medium">Balance:</span>
-                  <span className="text-amber-400 font-mono font-black text-sm">
+            <div className="bg-zinc-950 p-2 sm:p-2.5 rounded-xl border border-zinc-800 flex items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800">
+                  <Coins className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-[11px] text-zinc-400 font-medium">Bal:</span>
+                  <span className="text-amber-400 font-mono font-black text-xs sm:text-sm truncate">
                     ₹{currentDemoBalance.toLocaleString()}
                   </span>
                 </div>
@@ -573,18 +574,17 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                 <button
                   type="button"
                   onClick={handleAddDemoCoins}
-                  className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 transition-all flex items-center gap-1 cursor-pointer"
+                  className="px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold bg-emerald-500/15 active:bg-emerald-500/30 border border-emerald-500/30 text-emerald-300 transition-all flex items-center gap-1 cursor-pointer shrink-0"
                   title="Add ₹1,000 demo credits to test bids"
                 >
                   <Plus className="w-3 h-3" />
-                  <span>+₹1,000 Free Coins</span>
+                  <span>+₹1K Coins</span>
                 </button>
               </div>
 
               {/* Number Count Pill & Clear */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-zinc-300 bg-zinc-900 px-2.5 py-1 rounded-lg border border-zinc-800">
-                  Selected:{' '}
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-[11px] font-bold text-zinc-300 bg-zinc-900 px-2 py-1 rounded-lg border border-zinc-800">
                   <span className={`font-mono font-black ${selectionsCount === 37 ? 'text-amber-400' : 'text-emerald-400'}`}>
                     {selectionsCount}
                   </span>
@@ -596,7 +596,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                     type="button"
                     disabled={isFrozen}
                     onClick={handleClearAll}
-                    className="text-xs text-zinc-400 hover:text-rose-400 flex items-center gap-1 py-1 px-2 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+                    className="text-[11px] text-zinc-400 active:text-rose-400 flex items-center gap-0.5 py-1 px-1.5 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer"
                   >
                     <RotateCcw className="w-3 h-3" />
                     <span>Clear</span>
@@ -606,26 +606,21 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
             </div>
 
             {/* 2. BID AMOUNT SELECTOR: Preset Chips & Any Custom Amount */}
-            <div className="bg-zinc-950 p-3 rounded-2xl border border-zinc-800 space-y-2.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div>
-                  <span className="text-xs font-black uppercase text-zinc-300 tracking-wider flex items-center gap-1.5">
-                    <span>Select Bid Amount</span>
-                    <span className="text-[10px] text-zinc-400 font-normal normal-case">
-                      (Tap any amount, then tap numbers to place immediately)
-                    </span>
-                  </span>
-                </div>
+            <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[11px] font-black uppercase text-zinc-300 tracking-wider">
+                  Select Bid Amount:
+                </span>
 
                 {/* Custom stake input for ANY amount */}
-                <div className="flex items-center gap-1.5 self-start sm:self-auto">
-                  <span className="text-xs font-bold text-zinc-400">Custom ₹:</span>
-                  <div className="flex items-center bg-zinc-900 border border-zinc-700 rounded-xl px-1.5 py-0.5 focus-within:border-amber-400">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-bold text-zinc-400">Custom:</span>
+                  <div className="flex items-center bg-zinc-900 border border-zinc-700 rounded-lg px-1 py-0.5 focus-within:border-amber-400">
                     <button
                       type="button"
                       disabled={isFrozen || activeStake <= 1}
                       onClick={() => handleSelectChipStake(Math.max(1, activeStake - 5))}
-                      className="p-1 text-zinc-400 hover:text-zinc-100 disabled:opacity-30 cursor-pointer"
+                      className="p-1 text-zinc-400 active:text-zinc-100 disabled:opacity-30 cursor-pointer min-w-[24px]"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
@@ -635,14 +630,14 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                       disabled={isFrozen}
                       value={customStakeInput}
                       onChange={(e) => handleCustomStakeInput(e.target.value)}
-                      className="w-16 px-1 py-0.5 bg-transparent text-center font-mono font-black text-sm text-amber-400 focus:outline-none"
+                      className="w-12 sm:w-14 px-0.5 py-0.5 bg-transparent text-center font-mono font-black text-xs sm:text-sm text-amber-400 focus:outline-none"
                       placeholder="25"
                     />
                     <button
                       type="button"
                       disabled={isFrozen}
                       onClick={() => handleSelectChipStake(activeStake + 5)}
-                      className="p-1 text-zinc-400 hover:text-zinc-100 cursor-pointer"
+                      className="p-1 text-zinc-400 active:text-zinc-100 cursor-pointer min-w-[24px]"
                     >
                       <Plus className="w-3 h-3" />
                     </button>
@@ -652,17 +647,17 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                       type="button"
                       disabled={isFrozen}
                       onClick={handleApplyStakeToAll}
-                      className="px-2 py-1 text-[11px] font-bold rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 border border-zinc-700 cursor-pointer"
+                      className="px-1.5 py-1 text-[10px] font-bold rounded-lg bg-zinc-800 text-zinc-300 active:bg-zinc-700 border border-zinc-700 cursor-pointer"
                       title="Set all selected numbers to this amount"
                     >
-                      Set All to ₹{activeStake}
+                      All=₹{activeStake}
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Preset Chips */}
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+              {/* Preset Chips: 4 columns grid on mobile for perfect 1-thumb reach */}
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-1 sm:gap-1.5">
                 {[5, 10, 25, 50, 100, 200, 500, 1000].map((preset) => {
                   const isActive = activeStake === preset;
                   return (
@@ -671,10 +666,10 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                       type="button"
                       disabled={isFrozen}
                       onClick={() => handleSelectChipStake(preset)}
-                      className={`px-2.5 sm:px-3.5 py-1.5 rounded-xl font-mono text-xs sm:text-sm font-black transition-all cursor-pointer border ${
+                      className={`h-9 sm:h-10 rounded-xl font-mono text-xs sm:text-sm font-black transition-all cursor-pointer border active:scale-95 flex items-center justify-center ${
                         isActive
-                          ? 'bg-amber-400 text-zinc-950 border-amber-300 shadow-md shadow-amber-500/20 scale-105'
-                          : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700'
+                          ? 'bg-amber-400 text-zinc-950 border-amber-300 shadow-md shadow-amber-500/20 font-black'
+                          : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:bg-zinc-800'
                       }`}
                     >
                       ₹{preset}
@@ -686,41 +681,36 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
 
             {/* 3. INSTANT FOCUSED NUMBER INSPECTOR (Shows immediately when a number is selected!) */}
             {focusedNumber && (
-              <div className="bg-amber-500/10 border border-amber-500/30 p-2.5 sm:p-3 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 transition-all">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-400 text-zinc-950 font-mono font-black text-lg flex items-center justify-center shadow-lg shrink-0">
+              <div className="bg-amber-500/10 border border-amber-500/30 p-2 rounded-xl flex items-center justify-between gap-1.5 transition-all">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-amber-400 text-zinc-950 font-mono font-black text-base flex items-center justify-center shadow-md shrink-0">
                     {focusedNumber}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-black text-zinc-100">
-                        Number {focusedNumber} Selected
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] font-black text-zinc-100">
+                        #{focusedNumber}
                       </span>
                       {isHourlyGame && (
                         <span
-                          className={`text-[10px] font-black px-1.5 py-0.2 rounded ${
+                          className={`text-[8px] font-black px-1 py-0.2 rounded leading-none ${
                             parseInt(focusedNumber, 10) % 2 === 0
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                              : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                              ? 'bg-emerald-500/20 text-emerald-400'
+                              : 'bg-rose-500/20 text-rose-400'
                           }`}
                         >
-                          {parseInt(focusedNumber, 10) % 2 === 0 ? 'GREEN (Even)' : 'RED (Odd)'}
+                          {parseInt(focusedNumber, 10) % 2 === 0 ? 'GRN' : 'RED'}
                         </span>
                       )}
                     </div>
-                    <p className="text-[11px] text-zinc-400">
-                      Current Bid: <strong className="text-amber-400 font-mono">₹{focusedSelection?.stake || activeStake}</strong> •{' '}
-                      Potential Win:{' '}
-                      <strong className="text-emerald-400 font-mono">
-                        ₹{((focusedSelection?.stake || activeStake) * 90).toLocaleString()} (90×)
-                      </strong>
+                    <p className="text-[10px] text-zinc-400 truncate">
+                      Bid: <strong className="text-amber-400 font-mono">₹{focusedSelection?.stake || activeStake}</strong> (Win: <strong className="text-emerald-400 font-mono">₹{((focusedSelection?.stake || activeStake) * 90).toLocaleString()}</strong>)
                     </p>
                   </div>
                 </div>
 
                 {/* Instant Amount Adjuster on this focused number */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-bold text-zinc-400">Adjust Bid:</span>
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     type="button"
                     disabled={isFrozen}
@@ -730,7 +720,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                         Math.max(1, (focusedSelection?.stake || activeStake) - 5)
                       )
                     }
-                    className="px-2 py-1 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-bold border border-zinc-700 cursor-pointer"
+                    className="w-7 h-7 rounded-lg bg-zinc-800 text-zinc-300 active:bg-zinc-700 text-xs font-bold border border-zinc-700 cursor-pointer flex items-center justify-center"
                   >
                     -5
                   </button>
@@ -743,7 +733,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                         (focusedSelection?.stake || activeStake) + 5
                       )
                     }
-                    className="px-2 py-1 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 text-xs font-bold border border-zinc-700 cursor-pointer"
+                    className="w-7 h-7 rounded-lg bg-zinc-800 text-zinc-300 active:bg-zinc-700 text-xs font-bold border border-zinc-700 cursor-pointer flex items-center justify-center"
                   >
                     +5
                   </button>
@@ -756,22 +746,9 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                         (focusedSelection?.stake || activeStake) + 25
                       )
                     }
-                    className="px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-xs font-bold border border-amber-500/30 cursor-pointer"
+                    className="h-7 px-1.5 rounded-lg bg-amber-500/20 text-amber-300 active:bg-amber-500/30 text-xs font-bold border border-amber-500/30 cursor-pointer flex items-center justify-center"
                   >
                     +25
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isFrozen}
-                    onClick={() =>
-                      handleUpdateNumberStake(
-                        focusedNumber,
-                        (focusedSelection?.stake || activeStake) + 50
-                      )
-                    }
-                    className="px-2 py-1 rounded-lg bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-xs font-bold border border-amber-500/30 cursor-pointer"
-                  >
-                    +50
                   </button>
                   <button
                     type="button"
@@ -780,81 +757,81 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                       setSelections((prev) => prev.filter((s) => s.number !== focusedNumber));
                       setFocusedNumber(null);
                     }}
-                    className="px-2 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-xs font-bold border border-rose-500/30 flex items-center gap-1 cursor-pointer"
+                    className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-300 active:bg-rose-500/30 border border-rose-500/30 flex items-center justify-center cursor-pointer"
                     title="Remove this number"
                   >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Remove</span>
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
             )}
 
             {/* 4. 00–99 NUMBER BOARD */}
-            <div className="bg-zinc-950 p-2.5 sm:p-3 rounded-2xl border border-zinc-800 space-y-2.5">
+            <div className="bg-zinc-950 p-2 sm:p-3 rounded-xl border border-zinc-800 space-y-2">
               {/* Filter Tabs & Quick Pick */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs font-black uppercase text-zinc-300 tracking-wider">
-                    00–99 Numbers Board
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[11px] font-black uppercase text-zinc-300 tracking-wider">
+                    00–99 Grid
                   </span>
+
                   {isHourlyGame && (
-                    <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800 ml-2">
+                    <div className="flex items-center gap-0.5 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
                       <button
                         type="button"
                         onClick={() => setColorTab('ALL')}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer ${
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
                           colorTab === 'ALL'
                             ? 'bg-amber-500 text-zinc-950'
-                            : 'text-zinc-400 hover:text-zinc-200'
+                            : 'text-zinc-400'
                         }`}
                       >
-                        All (100)
+                        All
                       </button>
                       <button
                         type="button"
                         onClick={() => setColorTab('GREEN')}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer ${
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
                           colorTab === 'GREEN'
                             ? 'bg-emerald-500 text-zinc-950'
-                            : 'text-emerald-400 hover:text-emerald-300'
+                            : 'text-emerald-400'
                         }`}
                       >
-                        Green (50)
+                        Green
                       </button>
                       <button
                         type="button"
                         onClick={() => setColorTab('RED')}
-                        className={`px-2 py-0.5 rounded text-[11px] font-bold cursor-pointer ${
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
                           colorTab === 'RED'
                             ? 'bg-rose-500 text-zinc-950'
-                            : 'text-rose-400 hover:text-rose-300'
+                            : 'text-rose-400'
                         }`}
                       >
-                        Red (50)
+                        Red
                       </button>
                     </div>
                   )}
                 </div>
 
                 {/* Quick Pick random buttons */}
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase">Quick Pick:</span>
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
+                  <span className="text-[9px] font-bold text-zinc-500 uppercase shrink-0">Pick:</span>
                   <button
                     type="button"
                     disabled={isFrozen}
                     onClick={() => handleQuickPick(5)}
-                    className="px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-[11px] font-bold text-zinc-300 cursor-pointer disabled:opacity-40"
+                    className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-[10px] font-bold text-zinc-300 cursor-pointer disabled:opacity-40 shrink-0"
                   >
-                    +5 Random
+                    +5 Rand
                   </button>
                   <button
                     type="button"
                     disabled={isFrozen}
                     onClick={() => handleQuickPick(10)}
-                    className="px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-[11px] font-bold text-zinc-300 cursor-pointer disabled:opacity-40"
+                    className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-[10px] font-bold text-zinc-300 cursor-pointer disabled:opacity-40 shrink-0"
                   >
-                    +10 Random
+                    +10 Rand
                   </button>
                   {isHourlyGame && (
                     <>
@@ -862,15 +839,15 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                         type="button"
                         disabled={isFrozen}
                         onClick={() => handleQuickPick(5, 'GREEN')}
-                        className="px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold cursor-pointer disabled:opacity-40"
+                        className="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold cursor-pointer disabled:opacity-40 shrink-0"
                       >
-                        +5 Green
+                        +5 Grn
                       </button>
                       <button
                         type="button"
                         disabled={isFrozen}
                         onClick={() => handleQuickPick(5, 'RED')}
-                        className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[11px] font-bold cursor-pointer disabled:opacity-40"
+                        className="px-2 py-0.5 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[10px] font-bold cursor-pointer disabled:opacity-40 shrink-0"
                       >
                         +5 Red
                       </button>
@@ -879,8 +856,8 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                 </div>
               </div>
 
-              {/* Number Grid: 10 columns on tablet/desktop, 5 on mobile */}
-              <div className="grid grid-cols-5 sm:grid-cols-10 gap-1 sm:gap-1.5 p-1.5 sm:p-2 bg-zinc-900/60 rounded-xl border border-zinc-800/80">
+              {/* Number Grid: 5 columns on mobile (approx 55px-70px per tile), 10 on tablet */}
+              <div className="grid grid-cols-5 sm:grid-cols-10 gap-1 sm:gap-1.5 p-1 bg-zinc-900/60 rounded-xl border border-zinc-800/80">
                 {displayedNumbers.map((numStr) => {
                   const sel = selectionMap.get(numStr);
                   const isSelected = Boolean(sel);
@@ -917,7 +894,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                       {/* When selected: BID AMOUNT SHOWS IMMEDIATELY RIGHT ON THIS TILE! */}
                       {isSelected && sel && (
                         <div
-                          className={`mt-1 px-1 sm:px-1.5 py-0.5 rounded font-black text-[10px] sm:text-xs leading-none shadow-sm flex items-center justify-center ${
+                          className={`mt-0.5 px-1 py-0.2 rounded font-black text-[10px] leading-none shadow-sm flex items-center justify-center ${
                             isFocused
                               ? 'bg-zinc-950 text-amber-300 font-mono'
                               : 'bg-zinc-950/80 text-amber-300 font-mono'
@@ -945,32 +922,32 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
 
             {/* 5. SELECTED NUMBERS SUMMARY CHIPS (Fast overview) */}
             {selections.length > 0 && (
-              <div className="bg-zinc-950 p-2.5 sm:p-3 rounded-2xl border border-zinc-800 space-y-2">
+              <div className="bg-zinc-950 p-2 sm:p-2.5 rounded-xl border border-zinc-800 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider">
+                  <span className="text-[10px] font-bold text-zinc-300 uppercase tracking-wider">
                     Selected Bids ({selections.length}/37):
                   </span>
-                  <span className="text-[11px] text-zinc-400">
-                    Tap any chip to adjust bid amount
+                  <span className="text-[10px] text-zinc-500">
+                    Tap chip to adjust
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5 max-w-full">
                   {selections.map((s) => (
                     <button
                       key={s.number}
                       type="button"
                       onClick={() => setFocusedNumber(s.number)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold border transition-all shrink-0 cursor-pointer ${
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border transition-all shrink-0 cursor-pointer ${
                         focusedNumber === s.number
                           ? 'bg-amber-400 text-zinc-950 border-amber-300 font-black shadow-md'
                           : s.color === 'GREEN'
-                            ? 'bg-emerald-950/50 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/50'
-                            : 'bg-rose-950/50 text-rose-300 border-rose-500/40 hover:bg-rose-900/50'
+                            ? 'bg-emerald-950/50 text-emerald-300 border-emerald-500/40'
+                            : 'bg-rose-950/50 text-rose-300 border-rose-500/40'
                       }`}
                     >
                       <span className="font-mono font-black">#{s.number}</span>
-                      <span className="font-mono text-amber-300 font-black bg-zinc-950/70 px-1 py-0.2 rounded">
+                      <span className="font-mono text-amber-300 font-black bg-zinc-950/70 px-1 py-0.2 rounded text-[10px]">
                         ₹{s.stake}
                       </span>
                     </button>
@@ -1129,28 +1106,28 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
         {/* ================================================================ */}
         {/* MODAL FOOTER: Fast One-Tap "Place Bid" Action Bar               */}
         {/* ================================================================ */}
-        <div className="p-3.5 sm:p-4 bg-zinc-950 border-t border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+        <div className="p-2.5 sm:p-4 bg-zinc-950 border-t border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-3 shrink-0 pb-safe">
           {activeView === 'board' ? (
             <>
               {/* Summary Stats */}
               <div className="flex items-center gap-3 sm:gap-6 w-full sm:w-auto justify-between sm:justify-start">
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-zinc-400 block">Total Bid</span>
-                  <p className="text-lg sm:text-xl font-mono font-black text-amber-400 leading-none">
+                  <span className="text-[10px] uppercase font-bold text-zinc-400 block leading-none mb-0.5">Total Bid</span>
+                  <p className="text-base sm:text-xl font-mono font-black text-amber-400 leading-none">
                     ₹{totalStake.toLocaleString()}{' '}
-                    <span className="text-xs font-normal text-zinc-400">
+                    <span className="text-[10px] sm:text-xs font-normal text-zinc-400">
                       ({selectionsCount} {selectionsCount === 1 ? 'num' : 'nums'})
                     </span>
                   </p>
                 </div>
 
                 {selectionsCount > 0 && (
-                  <div className="border-l border-zinc-800 pl-3 sm:pl-6">
-                    <span className="text-[10px] uppercase font-bold text-emerald-400 block flex items-center gap-1">
+                  <div className="border-l border-zinc-800 pl-3 sm:pl-6 text-right sm:text-left">
+                    <span className="text-[10px] uppercase font-bold text-emerald-400 block flex items-center justify-end sm:justify-start gap-1 leading-none mb-0.5">
                       <TrendingUp className="w-3 h-3" />
-                      Potential Win (90×)
+                      Win (90×)
                     </span>
-                    <p className="text-base sm:text-lg font-mono font-black text-emerald-400 leading-none">
+                    <p className="text-sm sm:text-lg font-mono font-black text-emerald-400 leading-none">
                       ₹{potential90xReward.toLocaleString()}
                     </p>
                   </div>
@@ -1162,7 +1139,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 cursor-pointer"
+                  className="px-3 py-2.5 sm:py-3 rounded-xl text-xs font-bold text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 cursor-pointer min-h-[44px]"
                 >
                   Cancel
                 </button>
@@ -1178,7 +1155,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
                     isSubmitting
                   }
                   onClick={handlePlaceBidDirect}
-                  className="flex-1 sm:flex-none px-6 sm:px-8 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-zinc-950 active:scale-95 transition-all shadow-lg shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+                  className="flex-1 sm:flex-none px-4 sm:px-8 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-zinc-950 active:scale-95 transition-all shadow-lg shadow-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2 min-h-[44px]"
                 >
                   {isSubmitting ? (
                     <>
@@ -1208,7 +1185,7 @@ export const GameBoardModal: React.FC<GameBoardModalProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveView('board')}
-                className="px-5 py-2 rounded-xl text-xs font-black bg-amber-500 text-zinc-950 cursor-pointer hover:bg-amber-400"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-black bg-amber-500 text-zinc-950 cursor-pointer hover:bg-amber-400 min-h-[44px]"
               >
                 Back to Game Board
               </button>

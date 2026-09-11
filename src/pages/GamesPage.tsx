@@ -82,52 +82,52 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
   };
 
   return (
-    <div className="space-y-6 pb-12 max-w-6xl mx-auto px-4 sm:px-6">
+    <div className="space-y-4 sm:space-y-6 pb-8 max-w-6xl mx-auto px-2.5 sm:px-6">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border border-zinc-800 p-5 sm:p-6 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border border-zinc-800 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
         <div>
           <div className="inline-flex items-center gap-1.5 text-xs text-amber-400 font-semibold mb-1">
             <Sparkles className="w-3.5 h-3.5" />
             <span>WINORA Official Game Matrix</span>
           </div>
-          <h1 className="font-display text-2xl sm:text-3xl font-black text-zinc-100">
+          <h1 className="font-display text-xl sm:text-3xl font-black text-zinc-100 leading-tight">
             00–99 Multi-Number Draws (IST Schedule)
           </h1>
-          <p className="text-xs text-zinc-400 mt-1 max-w-xl">
+          <p className="text-[11px] sm:text-xs text-zinc-400 mt-1 max-w-xl leading-relaxed">
             90× single-number payouts. Hourly Play features draws every hour with 15-min freeze and 80% matching color refund. Kalyan markets close strictly 2 hours before declaration.
           </p>
         </div>
 
         {/* Schedule Badge */}
-        <div className="bg-zinc-950 border border-amber-500/30 p-3 rounded-xl flex items-center gap-3">
-          <Clock className="w-5 h-5 text-amber-400 shrink-0" />
-          <div className="text-xs">
-            <span className="text-zinc-200 font-bold block">Indian Standard Time (IST)</span>
-            <span className="text-zinc-400 text-[11px]">Kalyan closes 2h before • Hourly freezes 15m before</span>
+        <div className="bg-zinc-950 border border-amber-500/30 p-2.5 sm:p-3 rounded-xl flex items-center gap-2.5 w-full md:w-auto">
+          <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+          <div className="text-[11px] sm:text-xs">
+            <span className="text-zinc-200 font-bold block leading-none mb-0.5">Indian Standard Time (IST)</span>
+            <span className="text-zinc-400 text-[10px]">Kalyan closes 2h before • Hourly freezes 15m before</span>
           </div>
         </div>
       </div>
 
       {/* Navigation Tabs: All Rooms vs My Entries */}
-      <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
+        <div className="grid grid-cols-2 sm:flex items-center gap-1.5 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setActiveTab('rooms')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-2 ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 min-h-[40px] ${
               activeTab === 'rooms'
                 ? 'bg-amber-500 text-zinc-950 shadow-md font-black'
                 : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Active Game Rooms ({WINORA_GAMES.length})</span>
+            <span>Game Rooms ({WINORA_GAMES.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('my-entries')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-2 ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 min-h-[40px] ${
               activeTab === 'my-entries'
                 ? 'bg-amber-500 text-zinc-950 shadow-md font-black'
                 : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
@@ -142,7 +142,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
           <button
             type="button"
             onClick={loadEntries}
-            className="text-xs text-zinc-400 hover:text-zinc-100 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer"
+            className="text-xs text-zinc-400 hover:text-zinc-100 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer self-end sm:self-auto min-h-[36px]"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingEntries ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
@@ -152,7 +152,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
 
       {activeTab === 'rooms' ? (
         /* 4 Official Game Cards */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
           {WINORA_GAMES.map((game) => {
             const round = rounds[game.id];
             const cd = round ? formatCountdown(round.declareTime, round.freezeTime) : { isFrozen: false, text: '--' };
@@ -160,31 +160,31 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
             return (
               <div
                 key={game.id}
-                className={`bg-zinc-900 border rounded-2xl p-5 sm:p-6 shadow-xl flex flex-col justify-between transition-all hover:border-zinc-700 ${
+                className={`bg-zinc-900 border rounded-xl sm:rounded-2xl p-3.5 sm:p-6 shadow-lg flex flex-col justify-between transition-all hover:border-zinc-700 ${
                   cd.isFrozen ? 'border-zinc-800 opacity-90' : 'border-zinc-800/90'
                 }`}
               >
-                <div className="space-y-3">
+                <div className="space-y-2.5 sm:space-y-3">
                   {/* Top Row: Game Code & Timer */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded text-xs font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="px-2 py-0.5 rounded text-[10px] sm:text-xs font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 shrink-0">
                         {game.code}
                       </span>
-                      <h2 className="text-xl font-black text-zinc-100 font-display">
+                      <h2 className="text-base sm:text-xl font-black text-zinc-100 font-display truncate">
                         {game.name}
                       </h2>
                     </div>
 
                     {/* Countdown Badge */}
                     <div
-                      className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold font-mono border ${
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold font-mono border shrink-0 ${
                         cd.isFrozen
                           ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
                           : 'bg-zinc-950 text-zinc-300 border-zinc-700'
                       }`}
                     >
-                      <Clock className="w-3.5 h-3.5" />
+                      <Clock className="w-3 h-3" />
                       <span>{cd.text}</span>
                     </div>
                   </div>
@@ -192,23 +192,23 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
                   {/* Subtitle & Description */}
                   <div>
                     <p className="text-xs font-bold text-amber-400">{game.subtitle}</p>
-                    <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                    <p className="text-[11px] sm:text-xs text-zinc-400 mt-0.5 leading-relaxed">
                       {game.description}
                     </p>
                   </div>
 
                   {/* Badges / Metrics */}
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800 text-xs">
-                      <span className="text-[10px] uppercase font-bold text-zinc-400 block">Payout Ratio</span>
-                      <span className="font-mono font-black text-emerald-400 text-sm">
+                  <div className="grid grid-cols-2 gap-2 pt-0.5">
+                    <div className="bg-zinc-950 p-2 sm:p-2.5 rounded-xl border border-zinc-800 text-xs">
+                      <span className="text-[9px] uppercase font-bold text-zinc-400 block leading-none mb-0.5">Payout Ratio</span>
+                      <span className="font-mono font-black text-emerald-400 text-xs sm:text-sm">
                         {game.payoutMultiplier}× Return
                       </span>
                     </div>
 
-                    <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800 text-xs">
-                      <span className="text-[10px] uppercase font-bold text-zinc-400 block">Round #{round?.roundNumber || 101}</span>
-                      <span className="font-mono font-black text-zinc-200 text-sm">
+                    <div className="bg-zinc-950 p-2 sm:p-2.5 rounded-xl border border-zinc-800 text-xs">
+                      <span className="text-[9px] uppercase font-bold text-zinc-400 block leading-none mb-0.5">Round #{round?.roundNumber || 101}</span>
+                      <span className="font-mono font-black text-zinc-200 text-xs sm:text-sm truncate block">
                         Pool: ₹{(round?.totalBidsPool || 0).toLocaleString()}
                       </span>
                     </div>
@@ -216,34 +216,34 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
 
                   {/* Special Hourly Play Color Refund Highlight */}
                   {(game.hasGreenRefund || game.hasHourlyProtection) && (
-                    <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-2.5 flex items-center gap-2 text-xs text-emerald-300">
+                    <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-2 sm:p-2.5 flex items-center gap-2 text-[11px] text-emerald-300">
                       <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>
-                        <strong>80% Color Refund:</strong> If declared winning number is Green, all Green bids get 80% refund. If Red, all Red bids get 80% refund!
+                      <span className="leading-tight">
+                        <strong>80% Color Refund:</strong> If declared number is Green, all Green bids get 80% refund. If Red, all Red bids get 80% refund!
                       </span>
                     </div>
                   )}
                 </div>
 
                 {/* Action Button */}
-                <div className="pt-4 mt-2 border-t border-zinc-800/80">
+                <div className="pt-3 sm:pt-4 mt-2 border-t border-zinc-800/80">
                   <button
                     type="button"
                     onClick={() => setSelectedGameForBidding(game)}
-                    className={`w-full py-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                    className={`w-full min-h-[44px] py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
                       cd.isFrozen
-                        ? 'bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-750'
+                        ? 'bg-zinc-800 text-zinc-300 border border-zinc-700 active:bg-zinc-750'
                         : 'bg-gradient-to-r from-amber-500 to-amber-400 text-zinc-950 hover:brightness-110 shadow-lg shadow-amber-500/20 active:scale-[0.98]'
                     }`}
                   >
                     {cd.isFrozen ? (
                       <>
-                        <AlertTriangle className="w-4 h-4 text-amber-400" />
-                        <span>View Grid (Bidding Frozen - 15m Cutoff)</span>
+                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span className="truncate">View Grid (Frozen - 15m Cutoff)</span>
                       </>
                     ) : (
                       <>
-                        <PlayCircle className="w-4 h-4" />
+                        <PlayCircle className="w-4 h-4 shrink-0" />
                         <span>Open 00–99 Bidding Grid</span>
                       </>
                     )}
@@ -293,7 +293,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
               {myEntries.map((entry) => (
                 <div
                   key={entry.id}
-                  className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl space-y-3 hover:border-zinc-700 transition-colors"
+                  className="bg-zinc-950 border border-zinc-800 p-3 sm:p-4 rounded-xl space-y-2.5 sm:space-y-3 hover:border-zinc-700 transition-colors"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-900 pb-2.5">
                     <div className="flex items-center gap-2 flex-wrap">
