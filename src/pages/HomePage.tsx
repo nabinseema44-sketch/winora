@@ -229,7 +229,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             id="home-wallet-deposit-cta"
             type="button"
             onClick={() => onNavigate('wallet')}
-            className="px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider bg-amber-500 active:bg-amber-400 text-zinc-950 shadow-sm active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1 min-h-[40px]"
+            className="px-3 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider bg-amber-500 active:bg-amber-400 text-zinc-950 shadow-sm active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1 min-h-[44px]"
           >
             <ArrowDownLeft className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Deposit</span>
@@ -238,7 +238,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             id="home-wallet-withdraw-cta"
             type="button"
             onClick={() => onNavigate('wallet')}
-            className="px-3 py-2 rounded-xl font-bold text-xs uppercase tracking-wider bg-zinc-800 active:bg-zinc-750 text-zinc-200 border border-zinc-700 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1 min-h-[40px]"
+            className="px-3 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider bg-zinc-800 active:bg-zinc-750 text-zinc-200 border border-zinc-700 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1 min-h-[44px]"
           >
             <ArrowUpRight className="w-3.5 h-3.5 stroke-[2.5] text-amber-400" />
             <span>Withdraw</span>
@@ -309,7 +309,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               type="button"
               disabled={kalyanMorningRound.isFrozen}
               onClick={() => handlePlayGame(kmGameConfig)}
-              className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer min-h-[42px] ${
+              className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer min-h-[44px] ${
                 kalyanMorningRound.isFrozen
                   ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                   : 'bg-zinc-800 active:bg-amber-500 active:text-zinc-950 text-zinc-200 border border-zinc-700'
@@ -359,7 +359,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               type="button"
               disabled={kalyanRound.isFrozen}
               onClick={() => handlePlayGame(klGameConfig)}
-              className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer min-h-[42px] ${
+              className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer min-h-[44px] ${
                 kalyanRound.isFrozen
                   ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                   : 'bg-zinc-800 active:bg-amber-500 active:text-zinc-950 text-zinc-200 border border-zinc-700'
@@ -409,7 +409,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               type="button"
               disabled={kalyanNightRound.isFrozen}
               onClick={() => handlePlayGame(knGameConfig)}
-              className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer min-h-[42px] ${
+              className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer min-h-[44px] ${
                 kalyanNightRound.isFrozen
                   ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
                   : 'bg-zinc-800 active:bg-amber-500 active:text-zinc-950 text-zinc-200 border border-zinc-700'

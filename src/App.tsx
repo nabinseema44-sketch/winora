@@ -120,7 +120,7 @@ export default function App() {
         </div>
       )}
 
-      <main className="flex-1 w-full max-w-2xl mx-auto px-2.5 sm:px-4 py-3 sm:py-5 pb-24 sm:pb-28">
+      <main className="flex-1 w-full max-w-md mx-auto px-2.5 sm:px-3.5 py-3 sm:py-4 pb-24 sm:pb-28">
         {currentPage === 'home' && (
           <HomePage
             games={games}

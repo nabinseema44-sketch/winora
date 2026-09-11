@@ -82,39 +82,39 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-8 max-w-6xl mx-auto px-2.5 sm:px-6">
+    <div className="space-y-4 pb-8 w-full">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border border-zinc-800 p-3.5 sm:p-6 rounded-xl sm:rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+      <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 border border-zinc-800 p-3.5 sm:p-5 rounded-2xl flex flex-col items-start justify-between gap-2.5">
         <div>
           <div className="inline-flex items-center gap-1.5 text-xs text-amber-400 font-semibold mb-1">
             <Sparkles className="w-3.5 h-3.5" />
             <span>WINORA Official Game Matrix</span>
           </div>
-          <h1 className="font-display text-xl sm:text-3xl font-black text-zinc-100 leading-tight">
-            00–99 Multi-Number Draws (IST Schedule)
+          <h1 className="font-display text-lg sm:text-2xl font-black text-zinc-100 leading-tight">
+            00–99 Multi-Number Draws
           </h1>
-          <p className="text-[11px] sm:text-xs text-zinc-400 mt-1 max-w-xl leading-relaxed">
-            90× single-number payouts. Hourly Play features draws every hour with 15-min freeze and 80% matching color refund. Kalyan markets close strictly 2 hours before declaration.
+          <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+            90× return. Hourly Play features draws every hour with 15-min freeze & 80% color refund. Kalyan markets close 2h before declaration.
           </p>
         </div>
 
         {/* Schedule Badge */}
-        <div className="bg-zinc-950 border border-amber-500/30 p-2.5 sm:p-3 rounded-xl flex items-center gap-2.5 w-full md:w-auto">
+        <div className="bg-zinc-950 border border-amber-500/30 p-2 rounded-xl flex items-center gap-2 w-full">
           <Clock className="w-4 h-4 text-amber-400 shrink-0" />
-          <div className="text-[11px] sm:text-xs">
+          <div className="text-[10px] sm:text-[11px]">
             <span className="text-zinc-200 font-bold block leading-none mb-0.5">Indian Standard Time (IST)</span>
-            <span className="text-zinc-400 text-[10px]">Kalyan closes 2h before • Hourly freezes 15m before</span>
+            <span className="text-zinc-400 text-[9px] sm:text-[10px]">Kalyan closes 2h before • Hourly freezes 15m before</span>
           </div>
         </div>
       </div>
 
       {/* Navigation Tabs: All Rooms vs My Entries */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-2.5">
-        <div className="grid grid-cols-2 sm:flex items-center gap-1.5 w-full sm:w-auto">
+      <div className="flex items-center justify-between gap-2 border-b border-zinc-800 pb-2">
+        <div className="grid grid-cols-2 gap-1.5 w-full">
           <button
             type="button"
             onClick={() => setActiveTab('rooms')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 min-h-[40px] ${
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 min-h-[44px] ${
               activeTab === 'rooms'
                 ? 'bg-amber-500 text-zinc-950 shadow-md font-black'
                 : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
@@ -127,7 +127,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
           <button
             type="button"
             onClick={() => setActiveTab('my-entries')}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 min-h-[40px] ${
+            className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 min-h-[44px] ${
               activeTab === 'my-entries'
                 ? 'bg-amber-500 text-zinc-950 shadow-md font-black'
                 : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
@@ -142,7 +142,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
           <button
             type="button"
             onClick={loadEntries}
-            className="text-xs text-zinc-400 hover:text-zinc-100 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer self-end sm:self-auto min-h-[36px]"
+            className="text-xs text-zinc-400 hover:text-zinc-100 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-900 border border-zinc-800 cursor-pointer min-h-[44px] shrink-0"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingEntries ? 'animate-spin' : ''}`} />
             <span>Refresh</span>
@@ -152,7 +152,7 @@ export const GamesPage: React.FC<GamesPageProps> = ({ user, onToast }) => {
 
       {activeTab === 'rooms' ? (
         /* 4 Official Game Cards */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
+        <div className="grid grid-cols-1 gap-3">
           {WINORA_GAMES.map((game) => {
             const round = rounds[game.id];
             const cd = round ? formatCountdown(round.declareTime, round.freezeTime) : { isFrozen: false, text: '--' };
