@@ -28,7 +28,11 @@ function getAdminApp(): App {
     }
   }
 
-  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'winora-7cee1';
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+  if (!projectId) {
+    throw new Error('Missing FIREBASE_PROJECT_ID or VITE_FIREBASE_PROJECT_ID environment variable — Firebase Admin cannot initialize.');
+  }
+
   try {
     adminApp = initializeApp({ credential: applicationDefault(), projectId });
   } catch (e) {
