@@ -13,26 +13,6 @@ import {
 import { getFirebaseDb, isFirebaseConfigured } from './config';
 import { handleFirebaseError } from './errorHandling';
 
-/**
- * ============================================================================
- * WINORA FIRESTORE ARCHITECTURAL CONTRACT
- * ============================================================================
- * Master Rule: The browser/client is strictly untrusted.
- * Client permissions are restricted to:
- *  - Reading user public profiles
- *  - Creating user profile upon signup
- *  - Reading own monetary wallet balance
- *  - Reading public game lobby catalog
- *  - Reading own participation and rewards logs
- *
- * SENSITIVE LOGIC FORBIDDEN ON CLIENT (Reserved for Server-side Cloud Functions):
- *  - Wallet balance additions, deductions, refills
- *  - Virtual game outcome & RNG calculations
- *  - Reward allocations & promotions
- *  - Administrative audits & privileges
- * ============================================================================
- */
-
 export const COLLECTIONS = {
   USERS: 'users',
   WALLETS: 'wallets',
@@ -135,16 +115,6 @@ export interface AuditLogDocument {
   timestamp: string;
 }
 
-// ----------------------------------------------------------------------------
-// Prepared Profile Operations
-// ----------------------------------------------------------------------------
-
-/**
- * Retrieve user profile document from Firestore.
- * Returns null only when the document does not exist or Firestore is not initialized.
- * Connectivity/permission errors are rethrown so callers can distinguish them from
- * a missing profile and handle them without silently treating an outage as signup.
- */
 export async function getUserProfile(userId: string): Promise<UserDocument | null> {
   const db = getFirebaseDb();
   if (!db) return null;
@@ -152,21 +122,13 @@ export async function getUserProfile(userId: string): Promise<UserDocument | nul
   try {
     const userRef = doc(db, COLLECTIONS.USERS, userId);
     const snap = await getDoc(userRef);
-    if (snap.exists()) {
-      return snap.data() as UserDocument;
-    }
-    return null;
+    return snap.exists() ? (snap.data() as UserDocument) : null;
   } catch (error) {
     handleFirebaseError(error, 'read', `${COLLECTIONS.USERS}/${userId}`);
     throw error;
   }
 }
 
-/**
- * Initialize or update initial user profile upon authenticated signup in users/{uid}.
- * Never stores passwords or OTP codes.
- * Role is strictly locked to 'player'.
- */
 export async function createUserProfile(
   uid: string,
   data: {
@@ -191,7 +153,9 @@ export async function createUserProfile(
     const newDoc: UserDocument = {
       uid,
       phoneNumber: data.phoneNumber.trim(),
-      displayName: (data.displayName && data.displayName.trim().length >= 2) ? data.displayName.trim() : fallbackName,
+      displayName: (data.displayName && data.displayName.trim().length >= 2)
+        ? data.displayName.trim()
+        : fallbackName,
       role: 'player',
       status: 'active',
       avatar: data.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
@@ -228,14 +192,13 @@ export async function updateUserProfile(
 
   try {
     const userRef = doc(db, COLLECTIONS.USERS, uid);
-    const now = new Date().toISOString();
     const safePayload: {
       displayName: string;
       updatedAt: string;
       avatar?: string;
     } = {
       displayName: trimmedName,
-      updatedAt: now,
+      updatedAt: new Date().toISOString(),
     };
 
     if (updates.avatar && updates.avatar.trim().length > 0) {
@@ -250,10 +213,6 @@ export async function updateUserProfile(
   }
 }
 
-// ----------------------------------------------------------------------------
-// Prepared Read Operations for Future Expansion
-// ----------------------------------------------------------------------------
-
 export async function getWallet(userId: string): Promise<WalletDocument | null> {
   const db = getFirebaseDb();
   if (!db) return null;
@@ -261,10 +220,7 @@ export async function getWallet(userId: string): Promise<WalletDocument | null> 
   try {
     const walletRef = doc(db, COLLECTIONS.WALLETS, userId);
     const snap = await getDoc(walletRef);
-    if (snap.exists()) {
-      return snap.data() as WalletDocument;
-    }
-    return null;
+    return snap.exists() ? (snap.data() as WalletDocument) : null;
   } catch (error) {
     handleFirebaseError(error, 'read', `${COLLECTIONS.WALLETS}/${userId}`);
     return null;
@@ -293,7 +249,17 @@ export async function getUserNotifications(userId: string): Promise<Notification
     const notifsCol = collection(db, COLLECTIONS.NOTIFICATIONS);
     const q = query(notifsCol, where('userId', 'in', [userId, 'broadcast']), limit(20));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return snapshot.docs.map((d) => {
+      const data = d.data() as DocumentData;
+      return {
+        id: d.id,
+        userId: String(data.userId ?? ''),
+        title: String(data.title ?? ''),
+        message: String(data.message ?? ''),
+        read: Boolean(data.read),
+        createdAt: String(data.createdAt ?? ''),
+      } satisfies NotificationDocument;
+    });
   } catch (error) {
     handleFirebaseError(error, 'list', COLLECTIONS.NOTIFICATIONS);
     return [];
