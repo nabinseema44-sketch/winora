@@ -49,11 +49,15 @@ export interface UserDocument {
   uid: string;
   phoneNumber: string;
   displayName: string;
-  role: 'player';
-  status: 'active';
+  role: 'player' | 'agent' | 'master';
+  status: 'active' | 'suspended' | 'banned';
   avatar?: string;
   tier?: 'Bronze' | 'Silver' | 'Gold' | 'Diamond';
   level?: number;
+  pincode?: string;
+  assignedAgentId?: string;
+  referralCode?: string;
+  referredByUserId?: string;
   createdAt: string;
   updatedAt: string;
 }
