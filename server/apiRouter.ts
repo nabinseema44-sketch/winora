@@ -252,7 +252,7 @@ apiRouter.post('/wallet/sandbox/simulate-payment', async (req: Request, res: Res
  */
 apiRouter.get('/games/config', (req: Request, res: Response) => {
   const config = serverGameEntryService.getGamesConfig();
-  res.json({ success: true, ...config });
+  res.json(config);
 });
 
 /**
@@ -868,6 +868,3 @@ apiRouter.get('/authoritative/diagnostics', (_req: Request, res: Response) => {
     },
   });
 });
-
-
-
